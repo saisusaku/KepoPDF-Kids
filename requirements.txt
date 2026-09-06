@@ -5,3 +5,4 @@ edge-tts
 beautifulsoup4
 requests
 google-genai
+groq
