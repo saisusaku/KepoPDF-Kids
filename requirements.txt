@@ -7,3 +7,4 @@ requests
 google-genai
 groq
 PyMuPDF
+flask
