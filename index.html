@@ -427,7 +427,7 @@
 
     <!-- Audio Player untuk Voice Narasi TTS -->
     <audio id="ttsAudioPlayer" style="display: none;"></audio>
-    <!-- Audio Player untuk Backsound Musik Latar dari folder musik/backsound1.wav -->
+    <!-- Audio Player untuk Backsound Musik Latar -->
     <audio id="bgMusic" src="musik/backsound1.wav" loop preload="auto" style="display: none;"></audio>
 
     <script>
@@ -440,6 +440,7 @@
         let bgMusic = document.getElementById('bgMusic');
         let currentStoryPages = [];
         let currentStoryIndex = 0;
+        let isPlayingIntro = false;
 
         async function loadBookCatalog() {
             const catalog = document.getElementById('bookCatalog');
@@ -483,7 +484,7 @@
                 console.error("Gagal terhubung ke backend Render", e);
                 badge.innerText = "OFFLINE / SLEEPING";
                 badge.classList.add('offline');
-                emptyText.innerText = "Gagal terhubung ke server backend Render (kemungkinan server sedang wake up).";
+                emptyText.innerText = "Gagal terhubung ke server backend Render.";
             }
         }
 
@@ -543,7 +544,6 @@
             }, 600);
 
             try {
-                // Mengirim payload dengan parameter 'title' dan 'filename' sesuai standar backend asli
                 const response = await fetch(`${BACKEND_URL}/generate-storybook-cloud`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -580,7 +580,7 @@
                     const msgId = 'msg-' + Date.now();
                     chatBox.innerHTML += `
                         <div class="message bot" id="${msgId}">
-                            <b>AI Teman Cerita:</b> Hore! Buku Monkey Pen siap didongengkan (${pages.length} halaman). Yuk dengarkan ceritanya:
+                            <b>AI Teman Cerita:</b> Hore! Buku <b>${selectedBookTitle}</b> siap didongengkan (${pages.length} halaman). Yuk dengarkan ceritanya:
                             <div style="margin-top: 8px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
                                 ${pagesHtml}
                             </div>
@@ -588,7 +588,8 @@
                     `;
 
                     if (currentStoryPages.length > 0) {
-                        playPageSequence(0);
+                        // Mulai dari membacakan Judul Buku terlebih dahulu, baru masuk ke halaman cerita pertama
+                        playIntroAndStory();
                     }
 
                 } else {
@@ -604,6 +605,43 @@
             }
         }
 
+        async function playIntroAndStory() {
+            isPlayingIntro = true;
+            
+            // Nyalakan backsound musik latar
+            if (bgMusic.paused) {
+                bgMusic.volume = 0.25; 
+                bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
+            }
+
+            // Posisikan PDF di halaman sampul awal (Halaman 1)
+            updatePdfPage(1);
+
+            // Buat fungsi sintesis suara browser untuk membaca judul buku terlebih dahulu
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const targetLang = document.getElementById('langSelect').value;
+                const introText = targetLang === 'english' 
+                    ? `Let's read a storybook titled: ${selectedBookTitle}.` 
+                    : `Yuk kita membaca buku cerita berjudul: ${selectedBookTitle}.`;
+                
+                const utterance = new SpeechSynthesisUtterance(introText);
+                utterance.lang = targetLang === 'english' ? 'en-US' : 'id-ID';
+                utterance.rate = 0.9;
+                
+                utterance.onend = function() {
+                    isPlayingIntro = false;
+                    // Lanjut memutar halaman pertama cerita sampai habis
+                    playPageSequence(0);
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                isPlayingIntro = false;
+                playPageSequence(0);
+            }
+        }
+
         function playPageSequence(index) {
             if (index < 0 || index >= currentStoryPages.length) {
                 stopStoryAndMusic();
@@ -613,23 +651,25 @@
             const p = currentStoryPages[index];
             const boxId = `page-box-${index}`;
 
-            // Memutar backsound musik latar dari folder musik/ secara otomatis
             if (bgMusic.paused) {
-                bgMusic.volume = 0.25; 
-                bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
+                bgMusic.volume = 0.25;
+                bgMusic.play().catch(e => console.log(e));
             }
 
-            // Memperbarui halaman PDF di iframe kanan secara otomatis sesuai nomor halaman cerita
-            updatePdfPage(p.page);
+            // PENYESUAIAN HALAMAN PDF: Offset + 2 atau + 1 jika halaman fisik PDF bergeser dari nomor array AI
+            // Anda bisa menyesuaikan angka penambahan (+ 2 atau + 1) jika masih kurang pas dengan layout PDF Monkey Pen Anda
+            const adjustedPageNumber = (p.page || (index + 1)) + 2; 
+            updatePdfPage(adjustedPageNumber);
 
             playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
 
             currentAudio.onended = function() {
                 resetPlayButtons();
+                // Memastikan lanjut ke halaman berikutnya sampai habis sepenuhnya
                 if (currentStoryIndex + 1 < currentStoryPages.length) {
                     playPageSequence(currentStoryIndex + 1);
                 } else {
-                    console.log("Semua halaman cerita selesai dibacakan.");
+                    console.log("Semua halaman cerita selesai dibacakan sampai habis.");
                     stopStoryAndMusic();
                 }
             };
@@ -673,6 +713,11 @@
         }
 
         function togglePageAudio(index) {
+            if (isPlayingIntro) {
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+                isPlayingIntro = false;
+            }
+
             const btn = document.getElementById(`play-btn-${index}`);
             const p = currentStoryPages[index];
 
@@ -684,7 +729,8 @@
                     btn.style.backgroundColor = "";
                 }
             } else {
-                updatePdfPage(p.page);
+                const adjustedPageNumber = (p.page || (index + 1)) + 2;
+                updatePdfPage(adjustedPageNumber);
                 playPageSequence(index);
             }
         }
@@ -698,6 +744,10 @@
                 bgMusic.pause();
                 bgMusic.currentTime = 0;
             }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            isPlayingIntro = false;
             resetPlayButtons();
         }
 
