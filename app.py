@@ -18,24 +18,23 @@ from pydantic import BaseModel
 
 import edge_tts
 from bs4 import BeautifulSoup
-from google import genai
+from groq import Groq
 
 # =====================================================================
-# 1. KONFIGURASI DIREKTORI & AI CLOUD (Render Ready)
+# 1. KONFIGURASI DIREKTORI & GROQ AI
 # =====================================================================
 BASE_DIR = os.path.abspath(".")
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 DB_DIR = os.path.join(BASE_DIR, "chroma_db")
 ONLINE_AUDIO_DIR = os.path.join(BASE_DIR, "generated_audio")
 MUSIK_DIR = os.path.join(BASE_DIR, "musik")
-DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen") # Folder lokal dokumen di GitHub
+DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen")
 
 for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, MUSIK_DIR, DOKUMEN_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-app = FastAPI(title="KepoPDF Kids Cloud Backend", version="3.1.0")
+app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.0.0")
 
-# Middleware CORS agar Blogspot bisa mengakses backend Render
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -44,15 +43,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mounting folder audio agar bisa diputar di frontend
 app.mount("/audio-online", StaticFiles(directory=ONLINE_AUDIO_DIR), name="audio-online")
 
-# Inisialisasi Google Gemini API dari Environment Variable Render
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+# Inisialisasi Groq Client dari Environment Variable Render
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # =====================================================================
-# 2. FUNGSI PEMBERSIH & TTS
+# 2. FUNGSI PEMBERSIH & TTS (EDGE-TTS)
 # =====================================================================
 def prepare_text_for_kids(text: str) -> str:
     if not text:
@@ -93,7 +91,6 @@ async def generate_online_tts(data: TTSRequest):
 # =====================================================================
 @app.get("/api/monkeypen-books")
 async def get_local_documents():
-    """Mengambil daftar buku cerita langsung dari folder 'dokumen' di GitHub/Render."""
     try:
         if not os.path.exists(DOKUMEN_DIR):
             return {"status": "success", "source": "local_folder", "books": []}
@@ -102,9 +99,7 @@ async def get_local_documents():
         books = []
         
         for filename in files:
-            # Saring file yang didukung (misal .pdf, .txt, .epub) atau ambil semua file
             if filename.lower().endswith(('.pdf', '.txt', '.epub', '.docx')):
-                # Buat judul bersih tanpa ekstensi file
                 clean_title = os.path.splitext(filename)[0].replace('_', ' ').replace('-', ' ').title()
                 books.append({
                     "title": clean_title,
@@ -112,12 +107,18 @@ async def get_local_documents():
                     "url": f"/dokumen/{filename}"
                 })
 
+        if not books:
+            books = [
+                {"title": "001 Hide And Seek", "filename": "hide_and_seek.txt", "url": "#"},
+                {"title": "002 Ginger The Giraffe", "filename": "ginger.txt", "url": "#"}
+            ]
+
         return {"status": "success", "source": "local_folder", "books": books}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat membaca folder dokumen: {str(e)}")
 
 # =====================================================================
-# 4. PABRIK PEMBUAT BUKU CERITA DENGAN GEMINI AI CLOUD
+# 4. PABRIK PEMBUAT CERITA DENGAN GROQ AI
 # =====================================================================
 class StoryRequest(BaseModel):
     book_title: str
@@ -125,34 +126,35 @@ class StoryRequest(BaseModel):
 
 @app.post("/generate-storybook-cloud")
 async def generate_storybook_cloud(data: StoryRequest):
-    """Membuat narasi dongeng anak interaktif berdasarkan file di folder dokumen menggunakan Gemini AI."""
-    if not gemini_client:
-        raise HTTPException(status_code=500, detail="Gemini API Key belum disetel di environment variables Render.")
+    if not groq_client:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY belum disetel di environment variables Render.")
 
     try:
-        # Cek apakah ada file teks yang sesuai di folder dokumen untuk dijadikan referensi tambahan jika ada
         file_content_context = ""
         safe_title_slug = data.book_title.lower().replace(" ", "_")
-        for f in os.listdir(DOKUMEN_DIR):
-            if safe_title_slug in f.lower() and f.endswith('.txt'):
-                file_path = os.path.join(DOKUMEN_DIR, f)
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
-                    file_content_context = file_obj.read()[:3000] # Ambil cuplikan teks awal
+        if os.path.exists(DOKUMEN_DIR):
+            for f in os.listdir(DOKUMEN_DIR):
+                if safe_title_slug in f.lower() and f.endswith('.txt'):
+                    file_path = os.path.join(DOKUMEN_DIR, f)
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
+                        file_content_context = file_obj.read()[:3000]
 
         prompt = (
             f"Buatkan adaptasi dongeng anak yang ramah, ceria, dan mendidik berdasarkan judul buku: '{data.book_title}'. "
             f"Gunakan konteks isi berikut jika ada: {file_content_context} "
             f"Bagi cerita menjadi 4 halaman/bagian terpisah yang menarik. "
-            f"Berikan output dalam format JSON murni berupa list of object dengan struktur: "
-            f"[{{\"page\": 1, \"text\": \"...\"}}, {{\"page\": 2, \"text\": \"...\"}}]."
+            f"Berikan output HANYA dalam format JSON murni berupa list of object dengan struktur persis: "
+            f"[{{\"page\": 1, \"text\": \"...\"}}, {{\"page\": 2, \"text\": \"...\"}}]. Jangan sertakan teks lain di luar JSON."
         )
         
-        response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
+        # Menggunakan model Llama 3 yang super cepat dan gratis di Groq
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
         )
         
-        raw_text = response.text.strip()
+        raw_text = completion.choices[0].message.content.strip()
         if raw_text.startswith("```json"):
             raw_text = raw_text[7:-3].strip()
         elif raw_text.startswith("```"):
