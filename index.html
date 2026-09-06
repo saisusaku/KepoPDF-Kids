@@ -89,6 +89,12 @@
             font-size: 0.8rem;
             background: #A5D6A7; 
             color: #1B5E20;
+            transition: all 0.3s ease;
+        }
+
+        .badge.offline {
+            background: #FFCDD2;
+            color: #C62828;
         }
 
         .container {
@@ -311,6 +317,7 @@
             display: flex;
             gap: 8px;
             align-items: center;
+            justify-content: space-between;
         }
 
         .viewer-header {
@@ -431,11 +438,15 @@
         async function loadBookCatalog() {
             const catalog = document.getElementById('bookCatalog');
             const emptyText = document.getElementById('emptyCatalogText');
+            const badge = document.getElementById('licenseBadge');
 
             try {
                 const response = await fetch(`${BACKEND_URL}/api/monkeypen-books`);
                 const data = await response.json();
                 
+                badge.innerText = "ONLINE CLOUD";
+                badge.classList.remove('offline');
+
                 if (response.ok && data.books && data.books.length > 0) {
                     catalog.innerHTML = '';
                     data.books.forEach((book, idx) => {
@@ -443,7 +454,6 @@
                         card.className = 'book-card';
                         card.id = `card-${idx}`;
                         
-                        // Menyesuaikan parameter pdf_url / url yang dikirim backend
                         const pdfTargetUrl = BACKEND_URL + (book.pdf_url || book.url);
                         card.onclick = () => selectBook(book.title, idx, pdfTargetUrl);
 
@@ -459,14 +469,15 @@
                         catalog.appendChild(card);
                     });
 
-                    // Pilih buku pertama secara otomatis
                     selectBook(data.books[0].title, 0, BACKEND_URL + (data.books[0].pdf_url || data.books[0].url));
                 } else {
                     emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
                 }
             } catch (e) {
                 console.error("Gagal terhubung ke backend Render", e);
-                emptyText.innerText = "Gagal terhubung ke server backend Render.";
+                badge.innerText = "OFFLINE / SLEEPING";
+                badge.classList.add('offline');
+                emptyText.innerText = "Gagal terhubung ke server backend Render (kemungkinan server sedang wake up).";
             }
         }
 
@@ -549,7 +560,8 @@
                                 <div style="font-weight: 700; color: var(--accent-blue); font-size: 0.85rem;">Halaman ${p.page} 📖</div>
                                 <div class="story-page-text">${p.text}</div>
                                 <div class="audio-controls">
-                                    <button onclick="playPageSequence(${idx})" class="btn-green" style="padding: 4px 10px; font-size: 0.75rem;">▶️ Putar Halaman Ini</button>
+                                    <button onclick="togglePageAudio(${idx})" id="play-btn-${idx}" class="btn-green" style="padding: 4px 10px; font-size: 0.75rem;">▶️ Putar Halaman Ini</button>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);">Audio TTS Aktif</span>
                                 </div>
                             </div>
                         `;
@@ -570,12 +582,12 @@
                     }
 
                 } else {
-                    chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E"><b>Gagal:</b> ${result.detail}</div>`;
+                    chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E"><b>Gagal:</b> ${result.detail || 'Terjadi kesalahan pada server.'}</div>`;
                 }
             } catch (err) {
                 clearInterval(loadingInterval);
                 if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
-                chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E">Gagal terhubung ke server backend Render.</div>`;
+                chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E">Gagal terhubung ke server backend Render. Periksa koneksi internet Anda.</div>`;
             } finally {
                 storyBtn.disabled = false;
                 chatBox.scrollTop = chatBox.scrollHeight;
@@ -588,9 +600,10 @@
             const p = currentStoryPages[index];
             const boxId = `page-box-${index}`;
 
-            playPageAudio(BACKEND_URL + p.audio_url, boxId);
+            playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
 
             currentAudio.onended = function() {
+                resetPlayButtons();
                 if (currentStoryIndex + 1 < currentStoryPages.length) {
                     playPageSequence(currentStoryIndex + 1);
                 } else {
@@ -599,11 +612,13 @@
             };
         }
 
-        function playPageAudio(audioUrl, boxId) {
+        function playPageAudio(audioUrl, boxId, index) {
             if (currentAudio) {
                 currentAudio.pause();
                 currentAudio.currentTime = 0;
             }
+
+            resetPlayButtons();
 
             document.querySelectorAll('.story-page-box').forEach(b => b.style.background = '#FFFDF0');
             const activeBox = document.getElementById(boxId);
@@ -612,8 +627,37 @@
                 activeBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
+            const targetBtn = document.getElementById(`play-btn-${index}`);
+            if (targetBtn) {
+                targetBtn.innerHTML = "⏸️ Jeda";
+                targetBtn.style.backgroundColor = "#E53E3E";
+            }
+
             currentAudio.src = audioUrl;
             currentAudio.play().catch(e => console.log("Gagal memutar audio otomatis:", e));
+        }
+
+        function togglePageAudio(index) {
+            const btn = document.getElementById(`play-btn-${index}`);
+            const p = currentStoryPages[index];
+            const boxId = `page-box-${index}`;
+
+            if (!currentAudio.paused && currentStoryIndex === index) {
+                currentAudio.pause();
+                if (btn) {
+                    btn.innerHTML = "▶️ Putar Halaman Ini";
+                    btn.style.backgroundColor = "";
+                }
+            } else {
+                playPageSequence(index);
+            }
+        }
+
+        function resetPlayButtons() {
+            document.querySelectorAll('.audio-controls button').forEach(btn => {
+                btn.innerHTML = "▶️ Putar Halaman Ini";
+                btn.style.backgroundColor = "";
+            });
         }
 
         window.onload = () => {
