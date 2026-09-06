@@ -7,17 +7,16 @@ import json
 import hashlib
 import requests
 import re
-from typing import Optional, List
+from typing import Optional, List, Union
 import asyncio
 
-from fastapi import FastAPI, HTTPException, Form, Header
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import edge_tts
-from bs4 import BeautifulSoup
 from groq import Groq
 
 # =====================================================================
@@ -33,7 +32,7 @@ DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen")
 for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, MUSIK_DIR, DOKUMEN_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.2.1")
+app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -87,7 +86,7 @@ async def generate_online_tts(data: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================================
-# 3. PEMBACA FOLDER DOKUMEN
+# 3. PEMBACA FOLDER DOKUMEN (KATALOG & URL PANEL KANAN)
 # =====================================================================
 @app.get("/api/monkeypen-books")
 async def get_local_documents():
@@ -125,18 +124,19 @@ async def get_local_documents():
 # =====================================================================
 # 4. PABRIK PEMBACA & PENERJEMAH ISI DOKUMEN ASLI DENGAN GROQ AI
 # =====================================================================
-class StoryRequest(BaseModel):
-    book_title: str
-    target_lang: Optional[str] = "indonesia"
-
 @app.post("/generate-storybook-cloud")
-async def generate_storybook_cloud(data: StoryRequest):
+async def generate_storybook_cloud(request: Request):
     if not groq_client:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY belum disetel di environment variables Render.")
 
     try:
+        # Tangani data masuk baik berupa JSON maupun Form Data untuk mencegah error tipe data
+        body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else await request.form()
+        book_title = body.get("book_title") if isinstance(body, dict) else body.get("book_title", "Unknown")
+        target_lang = body.get("target_lang", "indonesia") if isinstance(body, dict) else "indonesia"
+
         file_content_context = ""
-        safe_title_slug = data.book_title.lower().replace(" ", "_")
+        safe_title_slug = str(book_title).lower().replace(" ", "_")
         
         if os.path.exists(DOKUMEN_DIR):
             for f in os.listdir(DOKUMEN_DIR):
@@ -154,7 +154,7 @@ async def generate_storybook_cloud(data: StoryRequest):
                     file_content_context = file_obj.read()
 
         if not file_content_context:
-            file_content_context = f"Judul Buku: {data.book_title}."
+            file_content_context = f"Judul Buku: {book_title}."
 
         json_format_example = '[{"page": 1, "text": "..."}, {"page": 2, "text": "..."}, {"page": 3, "text": "..."}, {"page": 4, "text": "..."}]'
         
@@ -181,7 +181,7 @@ async def generate_storybook_cloud(data: StoryRequest):
 
         pages_data = json.loads(raw_text)
         
-        voice = "id-ID-GadisNeural" if data.target_lang.lower() in ["indonesia", "id"] else "en-US-AriaNeural"
+        voice = "id-ID-GadisNeural" if str(target_lang).lower() in ["indonesia", "id"] else "en-US-AriaNeural"
         final_pages = []
 
         for item in pages_data:
@@ -205,11 +205,11 @@ async def generate_storybook_cloud(data: StoryRequest):
 
         return {
             "status": "success",
-            "book_title": data.book_title,
+            "book_title": book_title,
             "pages": final_pages
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal membaca dokumen asli: {str(e)}")
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Gagal membaca dokumen asli: {str(e)}"})
 
 if __name__ == "__main__":
     import uvicorn
