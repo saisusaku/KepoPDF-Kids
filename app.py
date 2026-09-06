@@ -147,7 +147,6 @@ async def generate_storybook_cloud(data: StoryRequest):
             f"[{{\"page\": 1, \"text\": \"...\"}}, {{\"page\": 2, \"text\": \"...\"}}]. Jangan sertakan teks lain di luar JSON."
         )
         
-        # Menggunakan model standar Groq yang aktif dan cepat
         completion = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
