@@ -320,7 +320,7 @@
         <div class="pdf-viewer-section">
             <div class="pdf-header">
                 <span id="pdfViewerTitle">Pratinjau Buku PDF</span>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">Sinkron Otomatis</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Sinkron Otomatis + Musik BGM</span>
             </div>
             <div class="pdf-body" id="viewerBody">
                 <div id="bookInfoDisplay" style="max-width: 400px; text-align: center; padding: 20px;">
@@ -332,8 +332,9 @@
         </div>
     </div>
 
-    <!-- Audio Player Tersembunyi -->
+    <!-- Audio Player Narasi & Musik Backsound -->
     <audio id="ttsAudioPlayer"></audio>
+    <audio id="bgmAudioPlayer" src="./musik/backsound1.wav" loop></audio>
 
     <script>
         // Sesuaikan dengan URL Backend Render Anda
@@ -343,11 +344,13 @@
         let selectedFilename = ''; 
         let selectedPdfBaseUrl = ''; 
         let currentAudio = document.getElementById('ttsAudioPlayer');
+        let bgmAudio = document.getElementById('bgmAudioPlayer');
         let currentStoryPages = [];
         let currentStoryIndex = 0;
 
         window.onload = function() {
             loadBookCatalog();
+            bgmAudio.volume = 0.25; // Atur volume backsound agar tidak terlalu keras (25%)
         };
 
         async function loadBookCatalog() {
@@ -424,12 +427,15 @@
             }
         }
 
-        // Fungsi penyinkron halaman PDF di iframe kanan secara otomatis
+        // Fungsi agar iframe memaksa memperbarui halaman PDF di sebelah kanan
         function updatePdfViewerPage(pageNumber) {
-            const iframe = document.getElementById('pdfViewerFrame');
-            if (iframe && selectedPdfBaseUrl) {
+            const viewerBody = document.getElementById('viewerBody');
+            if (selectedPdfBaseUrl) {
                 const cleanBaseUrl = selectedPdfBaseUrl.split('#')[0];
-                iframe.src = `${cleanBaseUrl}#page=${pageNumber}&toolbar=0`;
+                // Buat ulang elemen iframe agar browser benar-benar memuat ulang ke halaman baru
+                viewerBody.innerHTML = `
+                    <iframe id="pdfViewerFrame" src="${cleanBaseUrl}#page=${pageNumber}&toolbar=0" style="width:100%; height:100%; border:none;" title="${selectedBookTitle}"></iframe>
+                `;
             }
         }
 
@@ -523,15 +529,23 @@
         }
 
         function playPageSequence(index) {
-            if (index < 0 || index >= currentStoryPages.length) return;
+            if (index < 0 || index >= currentStoryPages.length) {
+                stopAllAudio(); // Matikan musik & narasi jika cerita habis
+                return;
+            }
             currentStoryIndex = index;
             const p = currentStoryPages[index];
             const boxId = `page-box-${index}`;
 
-            // Panggil sinkronisasi halaman PDF kanan setiap kali halaman audio bergeser
+            // Perbarui halaman PDF di sebelah kanan secara sinkron
             updatePdfViewerPage(p.page);
 
             playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
+
+            // Nyalakan musik latar (BGM) jika belum berputar
+            if (bgmAudio.paused) {
+                bgmAudio.play().catch(e => console.log("Gagal memutar BGM otomatis:", e));
+            }
 
             currentAudio.onended = function() {
                 resetPlayButtons();
@@ -539,6 +553,7 @@
                     playPageSequence(currentStoryIndex + 1);
                 } else {
                     console.log("Semua halaman cerita selesai dibacakan.");
+                    stopAllAudio(); // Matikan musik saat cerita selesai
                 }
             };
         }
@@ -560,23 +575,30 @@
 
             const targetBtn = document.getElementById(`play-btn-${index}`);
             if (targetBtn) {
-                targetBtn.innerHTML = "⏸️ Jeda";
+                targetBtn.innerHTML = "⏸️ Jeda / Matikan";
                 targetBtn.style.backgroundColor = "#E53E3E";
             }
 
             currentAudio.src = audioUrl;
             currentAudio.play().catch(e => console.log("Gagal memutar audio otomatis:", e));
+
+            // Pastikan BGM ikut menyala saat audio halaman diputar manual
+            if (bgmAudio.paused) {
+                bgmAudio.play().catch(e => console.log("Gagal memutar BGM otomatis:", e));
+            }
         }
 
         function togglePageAudio(index) {
             const btn = document.getElementById(`play-btn-${index}`);
             const p = currentStoryPages[index];
 
-            // Sinkronkan juga halaman PDF saat tombol per halaman diklik manual
+            // Sinkronkan halaman PDF saat tombol per halaman diklik
             updatePdfViewerPage(p.page);
 
             if (!currentAudio.paused && currentStoryIndex === index) {
+                // Jika sedang berputar, jeda narasi dan matikan juga backsound-nya
                 currentAudio.pause();
+                bgmAudio.pause();
                 if (btn) {
                     btn.innerHTML = "▶️ Putar Halaman Ini";
                     btn.style.backgroundColor = "";
@@ -584,6 +606,18 @@
             } else {
                 playPageSequence(index);
             }
+        }
+
+        function stopAllAudio() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            if (bgmAudio) {
+                bgmAudio.pause();
+                bgmAudio.currentTime = 0;
+            }
+            resetPlayButtons();
         }
 
         function resetPlayButtons() {
