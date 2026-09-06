@@ -146,7 +146,7 @@ async def get_local_documents():
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat membaca folder dokumen: {str(e)}")
 
 # =====================================================================
-# 4. PABRIK PEMBACA & PENERJEMAH ISI DOKUMEN ASLI DENGAN GROQ AI
+# 4. PABRIK PEMBACA & PENERJEMAH ISI DOKUMEN HALAMAN DEMI HALAMAN
 # =====================================================================
 @app.post("/generate-storybook-cloud")
 async def generate_storybook_cloud(request: Request):
@@ -159,85 +159,69 @@ async def generate_storybook_cloud(request: Request):
         target_filename = body.get("filename") if isinstance(body, dict) else None
         target_lang = body.get("target_lang", "indonesia") if isinstance(body, dict) else "indonesia"
 
-        file_content_context = ""
+        pdf_pages_content = []  # Menyimpan teks per halaman asli PDF
         
         if os.path.exists(DOKUMEN_DIR):
-            # Prioritas 1: Pencocokan langsung berdasarkan filename akurat dari frontend
+            target_path = None
             if target_filename and os.path.exists(os.path.join(DOKUMEN_DIR, target_filename)):
                 target_path = os.path.join(DOKUMEN_DIR, target_filename)
-                if target_filename.endswith('.txt'):
-                    with open(target_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
-                        file_content_context = file_obj.read()
-                elif target_filename.endswith('.pdf'):
-                    try:
-                        doc = fitz.open(target_path)
-                        file_content_context = "\n".join([page.get_text() for page in doc])
-                    except Exception as e:
-                        print(f"Gagal ekstrak teks PDF: {e}")
             else:
-                # Prioritas 2: Fallback pencocokan berdasarkan judul file
                 for f in os.listdir(DOKUMEN_DIR):
                     clean_f_title = os.path.splitext(f)[0].replace('_', ' ').replace('-', ' ').lower()
                     if clean_f_title == str(book_title).lower():
                         target_path = os.path.join(DOKUMEN_DIR, f)
-                        if f.endswith('.txt'):
-                            with open(target_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
-                                file_content_context = file_obj.read()
-                        elif f.endswith('.pdf'):
-                            try:
-                                doc = fitz.open(target_path)
-                                file_content_context = "\n".join([page.get_text() for page in doc])
-                            except Exception as e:
-                                print(f"Gagal ekstrak teks PDF: {e}")
                         break
 
-        if not file_content_context:
-            file_content_context = f"Judul Buku: {book_title}."
+            if target_path:
+                if target_path.endswith('.pdf'):
+                    try:
+                        doc = fitz.open(target_path)
+                        for page_num, page in enumerate(doc, start=1):
+                            txt = page.get_text().strip()
+                            if txt:  # Hanya ambil halaman yang ada teksnya
+                                pdf_pages_content.append({"page": page_num, "text": txt})
+                    except Exception as e:
+                        print(f"Gagal ekstrak teks PDF halaman demi halaman: {e}")
+                elif target_path.endswith('.txt'):
+                    try:
+                        with open(target_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
+                            content = file_obj.read()
+                            pdf_pages_content.append({"page": 1, "text": content})
+                    except Exception as e:
+                        print(f"Gagal baca txt: {e}")
 
-        json_format_example = '[{"page": 1, "text": "..."}, {"page": 2, "text": "..."}, {"page": 3, "text": "..."}, {"page": 4, "text": "..."}]'
-        
-        prompt = (
-            f"Anda adalah asisten pembaca buku anak profesional. Tugas Anda adalah membaca ISI TEKS ASLI dari dokumen di bawah ini, "
-            f"lalu menyusunnya kembali menjadi alur cerita anak yang terbagi menjadi 4 halaman/bagian secara berurutan. "
-            f"PENTING: Jangan mengarang cerita di luar isi dokumen. Terjemahkan ke dalam Bahasa Indonesia yang ramah anak jika isi aslinya berbahasa Inggris.\n\n"
-            f"ATURAN FORMAT: Output HARUS berupa JSON murni yang valid. Hindari penggunaan tanda kutip ganda di dalam isi string teks agar tidak merusak format JSON.\n\n"
-            f"--- ISI DOKUMEN ASLI ---\n{file_content_context[:8000]}\n------------------------\n\n"
-            f"Berikan output HANYA dalam format JSON murni berupa list of object dengan struktur persis seperti ini: {json_format_example} "
-            f"Jangan sertakan teks pengantar atau penutup lain di luar format JSON."
-        )
-        
-        completion = groq_client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-        
-        raw_text = completion.choices[0].message.content.strip()
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:-3].strip()
-        elif raw_text.startswith("```"):
-            raw_text = raw_text[3:-3].strip()
+        if not pdf_pages_content:
+            pdf_pages_content = [{"page": 1, "text": f"Judul Buku: {book_title}."}]
 
-        try:
-            pages_data = json.loads(raw_text)
-        except json.JSONDecodeError:
-            try:
-                fixed_text = re.sub(r'(?<!\\)\n', ' ', raw_text)
-                pages_data = json.loads(fixed_text)
-            except Exception as inner_e:
-                raise HTTPException(
-                    status_code=500, 
-                    detail=f"Gagal memproses JSON dari AI: {str(inner_e)}. Raw: {raw_text[:120]}"
-                )
-        
-        voice = "id-ID-GadisNeural" if str(target_lang).lower() in ["indonesia", "id"] else "en-US-AriaNeural"
         final_pages = []
+        voice = "id-ID-GadisNeural" if str(target_lang).lower() in ["indonesia", "id"] else "en-US-AriaNeural"
 
-        for item in pages_data:
-            page_num = item.get("page", 1)
-            text_content = item.get("text", "")
-            
-            clean_t = prepare_text_for_kids(text_content)
+        # Proses terjemahan & TTS halaman per halaman secara presisi
+        for item in pdf_pages_content:
+            page_num = item["page"]
+            raw_page_text = item["text"]
+
+            prompt = (
+                f"Anda adalah penerjemah buku anak profesional. Terjemahkan teks halaman ke-{page_num} berikut ke dalam Bahasa Indonesia yang ramah anak. "
+                f"Jika teks sudah dalam Bahasa Indonesia, cukup perhalus bahasanya agar enak didengar anak-anak. "
+                f"PENTING: Jangan tambahkan kata pengantar, langsung berikan hasil terjemahannya saja.\n\n"
+                f"Teks Asli:\n{raw_page_text}"
+            )
+
+            try:
+                completion = groq_client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                )
+                translated_text = completion.choices[0].message.content.strip()
+            except Exception:
+                translated_text = raw_page_text  # Fallback jika AI gagal
+
+            clean_t = prepare_text_for_kids(translated_text)
+            if not clean_t:
+                continue
+
             text_hash = hashlib.md5(clean_t.encode('utf-8')).hexdigest()[:12]
             audio_name = f"doc_edge_{text_hash}_p{page_num}.mp3"
             audio_path = os.path.join(ONLINE_AUDIO_DIR, audio_name)
@@ -248,7 +232,7 @@ async def generate_storybook_cloud(request: Request):
 
             final_pages.append({
                 "page": page_num,
-                "text": text_content,
+                "text": translated_text,
                 "audio_url": f"/audio-online/{audio_name}"
             })
 
