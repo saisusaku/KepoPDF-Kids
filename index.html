@@ -333,8 +333,7 @@
             justify-content: center;
             align-items: center;
             position: relative;
-            overflow: auto;
-            padding: 20px;
+            overflow: hidden;
             flex-direction: column;
             text-align: center;
         }
@@ -409,11 +408,6 @@
                     <span>📖✨</span>
                     Belum ada buku yang dipilih.<br>Klik salah satu sampul buku di katalog sebelah kiri!
                 </div>
-                <div id="bookInfoDisplay" style="display: none; max-width: 400px;">
-                    <div style="font-size: 4rem; margin-bottom: 15px;">🧸📘</div>
-                    <h3 id="selectedBookHeading" style="color: var(--accent-blue); margin-bottom: 10px; font-family: 'Fredoka', cursive;"></h3>
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">Buku bersumber resmi dari Monkey Pen siap untuk diracik ceritanya oleh AI!</p>
-                </div>
             </div>
         </div>
     </div>
@@ -443,7 +437,8 @@
                         const card = document.createElement('div');
                         card.className = 'book-card';
                         card.id = `card-${idx}`;
-                        card.onclick = () => selectBook(book.title, idx);
+                        // Pastikan objek buku dari API mengirimkan link/url PDF (misal: book.pdf_url)
+                        card.onclick = () => selectBook(book.title, idx, book.pdf_url);
 
                         card.innerHTML = `
                             <div class="book-cover-wrapper">📖</div>
@@ -453,7 +448,7 @@
                     });
 
                     // Pilih buku pertama secara otomatis
-                    selectBook(data.books[0].title, 0);
+                    selectBook(data.books[0].title, 0, data.books[0].pdf_url);
                 } else {
                     emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
                 }
@@ -463,17 +458,30 @@
             }
         }
 
-        function selectBook(title, index) {
+        function selectBook(title, index, pdfUrl = '') {
             selectedBookTitle = title;
 
             document.querySelectorAll('.book-card').forEach(card => card.classList.remove('active'));
             const activeCard = document.getElementById(`card-${index}`);
             if (activeCard) activeCard.classList.add('active');
 
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('bookInfoDisplay').style.display = 'block';
             document.getElementById('pdfViewerTitle').innerText = title;
-            document.getElementById('selectedBookHeading').innerText = title;
+            const viewerBody = document.getElementById('viewerBody');
+
+            // Render PDF menggunakan iframe jika pdfUrl tersedia
+            if (pdfUrl) {
+                viewerBody.innerHTML = `
+                    <iframe src="${pdfUrl}#toolbar=0" style="width:100%; height:100%; border:none;" title="${title}"></iframe>
+                `;
+            } else {
+                viewerBody.innerHTML = `
+                    <div id="bookInfoDisplay" style="max-width: 400px; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 15px;">🧸📘</div>
+                        <h3 id="selectedBookHeading" style="color: var(--accent-blue); margin-bottom: 10px; font-family: 'Fredoka', cursive;">${title}</h3>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Buku bersumber resmi dari Monkey Pen siap untuk diracik ceritanya oleh AI!</p>
+                    </div>
+                `;
+            }
         }
 
         async function generateStorybook() {
