@@ -427,7 +427,7 @@
 
     <!-- Audio Player untuk Voice Narasi TTS -->
     <audio id="ttsAudioPlayer" style="display: none;"></audio>
-    <!-- Audio Player untuk Backsound Musik Latar dari GitHub (musik/backsound1.wav) -->
+    <!-- Audio Player untuk Backsound Musik Latar dari folder musik/backsound1.wav -->
     <audio id="bgMusic" src="musik/backsound1.wav" loop preload="auto" style="display: none;"></audio>
 
     <script>
@@ -612,13 +612,13 @@
             const p = currentStoryPages[index];
             const boxId = `page-box-${index}`;
 
-            // Putar backsound musik latar dari GitHub saat cerita berjalan
+            // Memutar backsound musik latar dari folder musik/ secara otomatis
             if (bgMusic.paused) {
-                bgMusic.volume = 0.25; // Volume latar lembut agar tidak menutupi suara TTS
+                bgMusic.volume = 0.25; // Volume latar lembut agar suara narasi TTS tetap jelas
                 bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
             }
 
-            // Pindahkan halaman PDF di Iframe secara otomatis sesuai halaman yang dibaca
+            // Memperbarui halaman PDF di iframe kanan secara otomatis sesuai nomor halaman cerita
             updatePdfPage(p.page);
 
             playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
@@ -637,7 +637,7 @@
         function updatePdfPage(pageNumber) {
             const pdfFrame = document.getElementById('pdfFrame');
             if (pdfFrame && rawPdfUrl) {
-                // Memperbarui URL iframe dengan parameter halaman PDF (#page=N)
+                // Memperbarui URL iframe dengan parameter halaman PDF (#page=N) agar halaman kanan bergerak otomatis
                 pdfFrame.src = `${rawPdfUrl}#page=${pageNumber}&toolbar=0`;
             }
         }
@@ -663,7 +663,6 @@
                 targetBtn.style.backgroundColor = "#E53E3E";
             }
 
-            // Pastikan musik latar tetap menyala ketika memutar halaman
             if (bgMusic.paused) {
                 bgMusic.volume = 0.25;
                 bgMusic.play().catch(e => console.log(e));
@@ -678,7 +677,6 @@
             const p = currentStoryPages[index];
 
             if (!currentAudio.paused && currentStoryIndex === index) {
-                // Hentikan/jeda dongeng dan musik
                 currentAudio.pause();
                 bgMusic.pause();
                 if (btn) {
