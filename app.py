@@ -33,7 +33,7 @@ DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen")
 for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, MUSIK_DIR, DOKUMEN_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.2.0")
+app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.2.1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -147,7 +147,6 @@ async def generate_storybook_cloud(data: StoryRequest):
                             file_content_context = file_obj.read()
                     break
 
-        # Jika teks tidak ditemukan lewat slug, coba baca file pertama yang cocok
         if not file_content_context and os.path.exists(DOKUMEN_DIR):
             files = [f for f in os.listdir(DOKUMEN_DIR) if f.endswith('.txt')]
             if files:
@@ -155,23 +154,23 @@ async def generate_storybook_cloud(data: StoryRequest):
                     file_content_context = file_obj.read()
 
         if not file_content_context:
-            file_content_context = f"Judul Buku: {data.book_title}. (Teks isi dokumen tidak ditemukan, mohon sesuaikan isi dengan cerita anak standar)."
+            file_content_context = f"Judul Buku: {data.book_title}."
 
-        # Prompt ketat agar AI MENGGUNAKAN teks asli, bukan mengarang bebas
+        json_format_example = '[{"page": 1, "text": "..."}, {"page": 2, "text": "..."}, {"page": 3, "text": "..."}, {"page": 4, "text": "..."}]'
+        
         prompt = (
             f"Anda adalah asisten pembaca buku anak profesional. Tugas Anda adalah membaca ISI TEKS ASLI dari dokumen di bawah ini, "
             f"lalu menyusunnya kembali menjadi alur cerita anak yang terbagi menjadi 4 halaman/bagian secara berurutan. "
             f"PENTING: Jangan mengarang cerita di luar isi dokumen. Terjemahkan ke dalam Bahasa Indonesia yang ramah anak jika isi aslinya berbahasa Inggris.\n\n"
             f"--- ISI DOKUMEN ASLI ---\n{file_content_context[:8000]}\n------------------------\n\n"
-            f"Berikan output HANYA dalam format JSON murni berupa list of object dengan struktur persis: "
-            f"[{\"page\": 1, \"text\": \"...\"}, {\"page\": 2, \"text\": \"...\"}, {\"page\": 3, \"text\": \"...\"}, {\"page\": 4, \"text\": \"...\"}]. "
+            f"Berikan output HANYA dalam format JSON murni berupa list of object dengan struktur persis seperti ini: {json_format_example} "
             f"Jangan sertakan teks pengantar atau penutup lain di luar format JSON."
         )
         
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,  # Suhu diturunkan agar AI lebih patuh pada teks asli dan tidak berimajinasi liar
+            temperature=0.3,
         )
         
         raw_text = completion.choices[0].message.content.strip()
