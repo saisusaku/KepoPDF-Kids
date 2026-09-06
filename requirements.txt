@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic
+edge-tts
+beautifulsoup4
+requests
+google-genai
