@@ -431,6 +431,7 @@
         const BACKEND_URL = "https://kepopdf-kids.onrender.com";
 
         let selectedBookTitle = '';
+        let selectedFilename = ''; // Variabel presisi untuk menyimpan filename asli
         let currentAudio = document.getElementById('ttsAudioPlayer');
         let currentStoryPages = [];
         let currentStoryIndex = 0;
@@ -455,7 +456,8 @@
                         card.id = `card-${idx}`;
                         
                         const pdfTargetUrl = BACKEND_URL + (book.pdf_url || book.url);
-                        card.onclick = () => selectBook(book.title, idx, pdfTargetUrl);
+                        // Kirim juga parameter filename saat memilih buku
+                        card.onclick = () => selectBook(book.title, idx, pdfTargetUrl, book.filename);
 
                         let coverInner = '📖';
                         if (book.cover_url) {
@@ -469,7 +471,8 @@
                         catalog.appendChild(card);
                     });
 
-                    selectBook(data.books[0].title, 0, BACKEND_URL + (data.books[0].pdf_url || data.books[0].url));
+                    // Otomatis pilih buku pertama secara presisi
+                    selectBook(data.books[0].title, 0, BACKEND_URL + (data.books[0].pdf_url || data.books[0].url), data.books[0].filename);
                 } else {
                     emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
                 }
@@ -481,8 +484,9 @@
             }
         }
 
-        function selectBook(title, index, pdfUrl = '') {
+        function selectBook(title, index, pdfUrl = '', filename = '') {
             selectedBookTitle = title;
+            selectedFilename = filename; // Simpan filename agar tidak tertukar
 
             document.querySelectorAll('.book-card').forEach(card => card.classList.remove('active'));
             const activeCard = document.getElementById(`card-${index}`);
@@ -535,11 +539,13 @@
             }, 600);
 
             try {
+                // Kirim book_title dan filename secara bersamaan ke backend
                 const response = await fetch(`${BACKEND_URL}/generate-storybook-cloud`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         book_title: selectedBookTitle,
+                        filename: selectedFilename, 
                         target_lang: targetLang
                     })
                 });
