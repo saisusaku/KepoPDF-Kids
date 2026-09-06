@@ -147,8 +147,9 @@ async def generate_storybook_cloud(data: StoryRequest):
             f"[{{\"page\": 1, \"text\": \"...\"}}, {{\"page\": 2, \"text\": \"...\"}}]. Jangan sertakan teks lain di luar JSON."
         )
         
+        # Menggunakan model aktif openai/gpt-oss-20b
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
