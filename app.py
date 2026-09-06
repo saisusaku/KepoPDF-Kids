@@ -34,7 +34,7 @@ DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen")
 for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, THUMB_DIR, MUSIK_DIR, DOKUMEN_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.4.0")
+app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -136,7 +136,7 @@ async def get_local_documents():
                     "title": clean_title,
                     "filename": filename,
                     "url": f"/dokumen/{filename}",
-                    "pdf_url": f"/dokumen/{filename}",  # Kompatibilitas frontend
+                    "pdf_url": f"/dokumen/{filename}",
                     "cover_url": cover_url,
                     "preview": preview_snippet
                 })
@@ -156,39 +156,40 @@ async def generate_storybook_cloud(request: Request):
     try:
         body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else await request.form()
         book_title = body.get("book_title") if isinstance(body, dict) else body.get("book_title", "Unknown")
+        target_filename = body.get("filename") if isinstance(body, dict) else None
         target_lang = body.get("target_lang", "indonesia") if isinstance(body, dict) else "indonesia"
 
         file_content_context = ""
-        safe_title_slug = str(book_title).lower().replace(" ", "_")
         
         if os.path.exists(DOKUMEN_DIR):
-            for f in os.listdir(DOKUMEN_DIR):
-                if safe_title_slug in f.lower() or f.lower().startswith(safe_title_slug[:5]):
-                    file_path = os.path.join(DOKUMEN_DIR, f)
-                    if f.endswith('.txt'):
-                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
-                            file_content_context = file_obj.read()
-                    elif f.endswith('.pdf'):
-                        try:
-                            doc = fitz.open(file_path)
-                            extracted_text = []
-                            for page in doc:
-                                extracted_text.append(page.get_text())
-                            file_content_context = "\n".join(extracted_text)
-                        except Exception as e:
-                            print(f"Gagal ekstrak teks PDF: {e}")
-                    break
-
-        if not file_content_context and os.path.exists(DOKUMEN_DIR):
-            files = [f for f in os.listdir(DOKUMEN_DIR) if f.endswith(('.txt', '.pdf'))]
-            if files:
-                f_path = os.path.join(DOKUMEN_DIR, files[0])
-                if files[0].endswith('.pdf'):
-                    doc = fitz.open(f_path)
-                    file_content_context = "\n".join([p.get_text() for p in doc])
-                else:
-                    with open(f_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
+            # Prioritas 1: Pencocokan langsung berdasarkan filename akurat dari frontend
+            if target_filename and os.path.exists(os.path.join(DOKUMEN_DIR, target_filename)):
+                target_path = os.path.join(DOKUMEN_DIR, target_filename)
+                if target_filename.endswith('.txt'):
+                    with open(target_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
                         file_content_context = file_obj.read()
+                elif target_filename.endswith('.pdf'):
+                    try:
+                        doc = fitz.open(target_path)
+                        file_content_context = "\n".join([page.get_text() for page in doc])
+                    except Exception as e:
+                        print(f"Gagal ekstrak teks PDF: {e}")
+            else:
+                # Prioritas 2: Fallback pencocokan berdasarkan judul file
+                for f in os.listdir(DOKUMEN_DIR):
+                    clean_f_title = os.path.splitext(f)[0].replace('_', ' ').replace('-', ' ').lower()
+                    if clean_f_title == str(book_title).lower():
+                        target_path = os.path.join(DOKUMEN_DIR, f)
+                        if f.endswith('.txt'):
+                            with open(target_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
+                                file_content_context = file_obj.read()
+                        elif f.endswith('.pdf'):
+                            try:
+                                doc = fitz.open(target_path)
+                                file_content_context = "\n".join([page.get_text() for page in doc])
+                            except Exception as e:
+                                print(f"Gagal ekstrak teks PDF: {e}")
+                        break
 
         if not file_content_context:
             file_content_context = f"Judul Buku: {book_title}."
@@ -199,6 +200,7 @@ async def generate_storybook_cloud(request: Request):
             f"Anda adalah asisten pembaca buku anak profesional. Tugas Anda adalah membaca ISI TEKS ASLI dari dokumen di bawah ini, "
             f"lalu menyusunnya kembali menjadi alur cerita anak yang terbagi menjadi 4 halaman/bagian secara berurutan. "
             f"PENTING: Jangan mengarang cerita di luar isi dokumen. Terjemahkan ke dalam Bahasa Indonesia yang ramah anak jika isi aslinya berbahasa Inggris.\n\n"
+            f"ATURAN FORMAT: Output HARUS berupa JSON murni yang valid. Hindari penggunaan tanda kutip ganda di dalam isi string teks agar tidak merusak format JSON.\n\n"
             f"--- ISI DOKUMEN ASLI ---\n{file_content_context[:8000]}\n------------------------\n\n"
             f"Berikan output HANYA dalam format JSON murni berupa list of object dengan struktur persis seperti ini: {json_format_example} "
             f"Jangan sertakan teks pengantar atau penutup lain di luar format JSON."
@@ -216,7 +218,17 @@ async def generate_storybook_cloud(request: Request):
         elif raw_text.startswith("```"):
             raw_text = raw_text[3:-3].strip()
 
-        pages_data = json.loads(raw_text)
+        try:
+            pages_data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            try:
+                fixed_text = re.sub(r'(?<!\\)\n', ' ', raw_text)
+                pages_data = json.loads(fixed_text)
+            except Exception as inner_e:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"Gagal memproses JSON dari AI: {str(inner_e)}. Raw: {raw_text[:120]}"
+                )
         
         voice = "id-ID-GadisNeural" if str(target_lang).lower() in ["indonesia", "id"] else "en-US-AriaNeural"
         final_pages = []
