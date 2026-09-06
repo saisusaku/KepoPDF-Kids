@@ -543,12 +543,13 @@
             }, 600);
 
             try {
+                // Mengirim payload dengan parameter 'title' dan 'filename' sesuai standar backend asli
                 const response = await fetch(`${BACKEND_URL}/generate-storybook-cloud`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        book_title: selectedBookTitle,
-                        filename: selectedFilename, 
+                        title: selectedBookTitle,
+                        filename: selectedFilename,
                         target_lang: targetLang
                     })
                 });
@@ -614,7 +615,7 @@
 
             // Memutar backsound musik latar dari folder musik/ secara otomatis
             if (bgMusic.paused) {
-                bgMusic.volume = 0.25; // Volume latar lembut agar suara narasi TTS tetap jelas
+                bgMusic.volume = 0.25; 
                 bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
             }
 
@@ -637,7 +638,6 @@
         function updatePdfPage(pageNumber) {
             const pdfFrame = document.getElementById('pdfFrame');
             if (pdfFrame && rawPdfUrl) {
-                // Memperbarui URL iframe dengan parameter halaman PDF (#page=N) agar halaman kanan bergerak otomatis
                 pdfFrame.src = `${rawPdfUrl}#page=${pageNumber}&toolbar=0`;
             }
         }
