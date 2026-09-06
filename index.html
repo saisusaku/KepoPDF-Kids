@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KepoPDF Kids - Teman Membaca Cerita AI</title>
+    <title>KepoGames & KepoPDF Kids - Teman Membaca Cerita AI</title>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -34,6 +34,65 @@
             overflow: hidden;
         }
 
+        /* --- SPLASH SCREEN --- */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+            padding: 20px;
+            text-align: center;
+        }
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .splash-logo {
+            font-size: 5rem;
+            animation: bounce 2s infinite;
+            margin-bottom: 15px;
+        }
+        .splash-title {
+            font-family: 'Fredoka', cursive;
+            font-size: 2.5rem;
+            color: var(--accent-pink);
+            margin-bottom: 5px;
+        }
+        .splash-subtitle {
+            font-family: 'Fredoka', cursive;
+            font-size: 1.2rem;
+            color: var(--accent-blue);
+            margin-bottom: 15px;
+        }
+        .splash-message {
+            font-size: 1rem;
+            color: var(--text-muted);
+            max-width: 450px;
+            line-height: 1.5;
+            font-weight: 600;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--accent-yellow);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-top: 25px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         header {
             background: #FFFFFF;
             border-bottom: 4px solid #FFE066;
@@ -50,7 +109,7 @@
             align-items: center;
             gap: 12px;
             font-family: 'Fredoka', cursive;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             color: var(--accent-pink);
         }
 
@@ -92,9 +151,26 @@
             transition: all 0.3s ease;
         }
 
+        .badge.checking {
+            background: #FFF9C4;
+            color: #F57F17;
+        }
+
+        .badge.waking {
+            background: #FFE0B2;
+            color: #EF6C00;
+            animation: pulse 1.5s infinite;
+        }
+
         .badge.offline {
             background: #FFCDD2;
             color: #C62828;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         .container {
@@ -368,14 +444,27 @@
 </head>
 <body>
 
+    <!-- SPLASH SCREEN -->
+    <div id="splash-screen">
+        <div class="splash-logo">🎮📚</div>
+        <div class="splash-title">KepoGames</div>
+        <div class="splash-subtitle">KepoPDF Kids & Monkey Pen AI</div>
+        <p class="splash-message" id="splash-msg">
+            Menghubungkan ke server awan KepoGames...<br>
+            Harap bersabar, server mungkin membutuhkan waktu 1-2 menit untuk aktif kembali dari mode tidur (*spin-down*). 😊
+        </p>
+        <div class="spinner"></div>
+    </div>
+
+    <!-- HEADER -->
     <header>
         <div class="brand">
-            <span class="brand-icon">📚</span>
-            <span>KepoPDF Kids! (Monkey Pen)</span>
+            <span class="brand-icon">🎮</span>
+            <span>KepoGames - KepoPDF Kids! (Monkey Pen)</span>
         </div>
         <div class="license-bar">
             <div>
-                Status: <span id="licenseBadge" class="badge">ONLINE CLOUD</span>
+                Status: <span id="licenseBadge" class="badge checking">MENGECEK...</span>
             </div>
         </div>
     </header>
@@ -399,7 +488,7 @@
                 </div>
                 <div id="chat-box">
                     <div class="message bot">
-                        <b>AI Teman Cerita:</b> Halo Teman Pintar! 🌟 Pilih salah satu buku cerita Monkey Pen di rak sebelah atas. Pilih bahasa lalu klik tombol di bawah untuk mendengarkan dongeng serunya!
+                        <b>AI Teman Cerita:</b> Halo Teman Pintar di KepoGames! 🌟 Pilih salah satu buku cerita Monkey Pen di rak sebelah atas. Pilih bahasa lalu klik tombol di bawah untuk mendengarkan dongeng serunya!
                     </div>
                 </div>
                 <div class="row" style="gap: 6px;">
@@ -431,7 +520,7 @@
     <audio id="bgMusic" src="musik/backsound1.wav" loop preload="auto" style="display: none;"></audio>
 
     <script>
-        const BACKEND_URL = "https://kepopdf-kids.onrender.com"; // Sesuaikan dengan URL backend Anda jika berjalan lokal ganti ke http://localhost:8000
+        const BACKEND_URL = "https://kepopdf-kids.onrender.com"; // Ganti URL jika menggunakan server lokal (misal: http://localhost:8000)
 
         let selectedBookTitle = '';
         let selectedFilename = ''; 
@@ -442,19 +531,81 @@
         let currentStoryIndex = 0;
         let isPlayingIntro = false;
 
-        async function loadBookCatalog() {
+        // Fungsi untuk menyembunyikan Splash Screen dengan transisi halus
+        function hideSplashScreen() {
+            const splash = document.getElementById('splash-screen');
+            if (splash) {
+                splash.classList.add('hidden');
+                setTimeout(() => splash.remove(), 500);
+            }
+        }
+
+        // Pengecekan status server Render secara berkala saat aplikasi dimuat
+        async function checkServerStatusAndLoad() {
+            const badge = document.getElementById('licenseBadge');
+            const splashMsg = document.getElementById('splash-msg');
+            const emptyText = document.getElementById('emptyCatalogText');
+            
+            let attempts = 0;
+            const maxAttempts = 30; // Batas percobaan (~1.5 menit)
+
+            badge.innerText = "MENGECEK...";
+            badge.className = "badge checking";
+
+            while (attempts < maxAttempts) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                    const response = await fetch(`${BACKEND_URL}/api/monkeypen-books`, { 
+                        signal: controller.signal 
+                    });
+                    clearTimeout(timeoutId);
+
+                    if (response.ok) {
+                        // Server aktif! Muat data buku dan hilangkan splash screen
+                        badge.innerText = "ONLINE CLOUD";
+                        badge.className = "badge";
+                        hideSplashScreen();
+                        loadBookCatalogData(response);
+                        return;
+                    }
+                } catch (e) {
+                    // Server mungkin masih dalam proses wake-up (sleep mode Render)
+                    attempts++;
+                    if (attempts === 3) {
+                        badge.innerText = "MENUNGGU SERVER...";
+                        badge.className = "badge waking";
+                        if (splashMsg) {
+                            splashMsg.innerHTML = "Server KepoGames sedang dibangunkan dari mode tidur.<br>Mohon tunggu sebentar lagi ya... ✨";
+                        }
+                    }
+                }
+                // Jeda 3 detik sebelum mencoba kembali
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+
+            // Jika gagal setelah batas percobaan tercapai
+            badge.innerText = "OFFLINE / SLEEPING";
+            badge.className = "badge offline";
+            if (splashMsg) {
+                splashMsg.innerHTML = "Gagal terhubung ke server KepoGames.<br>Pastikan koneksi internet stabil atau muat ulang halaman.";
+            }
+            if (emptyText) {
+                emptyText.innerText = "Gagal terhubung ke server backend Render.";
+            }
+            // Sembunyikan splash screen agar pengguna tetap bisa melihat antarmuka meski offline
+            setTimeout(hideSplashScreen, 2000);
+        }
+
+        async function loadBookCatalogData(responseObj) {
             const catalog = document.getElementById('bookCatalog');
             const emptyText = document.getElementById('emptyCatalogText');
-            const badge = document.getElementById('licenseBadge');
 
             try {
-                const response = await fetch(`${BACKEND_URL}/api/monkeypen-books`);
-                const data = await response.json();
+                const data = responseObj ? await responseObj.json() : await (await fetch(`${BACKEND_URL}/api/monkeypen-books`)).json();
                 
-                badge.innerText = "ONLINE CLOUD";
-                badge.classList.remove('offline');
-
-                if (response.ok && data.books && data.books.length > 0) {
+                if (data.books && data.books.length > 0) {
                     catalog.innerHTML = '';
                     data.books.forEach((book, idx) => {
                         const card = document.createElement('div');
@@ -478,13 +629,10 @@
 
                     selectBook(data.books[0].title, 0, BACKEND_URL + (data.books[0].pdf_url || data.books[0].url), data.books[0].filename);
                 } else {
-                    emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
+                    if (emptyText) emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
                 }
             } catch (e) {
-                console.error("Gagal terhubung ke backend Render", e);
-                badge.innerText = "OFFLINE / SLEEPING";
-                badge.classList.add('offline');
-                emptyText.innerText = "Gagal terhubung ke server backend Render.";
+                console.error("Kesalahan saat memproses data buku:", e);
             }
         }
 
@@ -509,7 +657,7 @@
                     <div id="bookInfoDisplay" style="max-width: 400px; text-align: center;">
                         <div style="font-size: 4rem; margin-bottom: 15px;">🧸📘</div>
                         <h3 id="selectedBookHeading" style="color: var(--accent-blue); margin-bottom: 10px; font-family: 'Fredoka', cursive;">${title}</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">Buku bersumber resmi dari Monkey Pen siap untuk diracik ceritanya oleh AI!</p>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Buku bersumber resmi dari Monkey Pen siap untuk diracik ceritanya oleh AI KepoGames!</p>
                     </div>
                 `;
             }
@@ -529,7 +677,7 @@
             
             chatBox.innerHTML += `
                 <div class="message bot" id="${loadingId}">
-                    <b>AI Teman Cerita:</b> 
+                    <b>AI KepoGames:</b> 
                     <span id="loading-text">Sedang meracik keajaiban dongeng dari Monkey Pen... ✨🪄</span>
                 </div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -580,7 +728,7 @@
                     const msgId = 'msg-' + Date.now();
                     chatBox.innerHTML += `
                         <div class="message bot" id="${msgId}">
-                            <b>AI Teman Cerita:</b> Hore! Buku <b>${selectedBookTitle}</b> siap didongengkan secara berurutan (${pages.length} halaman). Yuk dengarkan:
+                            <b>AI KepoGames:</b> Hore! Buku <b>${selectedBookTitle}</b> siap didongengkan secara berurutan (${pages.length} halaman). Yuk dengarkan:
                             <div style="margin-top: 8px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
                                 ${pagesHtml}
                             </div>
@@ -597,7 +745,7 @@
             } catch (err) {
                 clearInterval(loadingInterval);
                 if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
-                chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E">Gagal terhubung ke server backend Render. Periksa koneksi internet Anda.</div>`;
+                chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E">Gagal terhubung ke server backend Render KepoGames. Periksa koneksi internet Anda.</div>`;
             } finally {
                 storyBtn.disabled = false;
                 chatBox.scrollTop = chatBox.scrollHeight;
@@ -754,8 +902,9 @@
             });
         }
 
+        // Jalankan pengecekan server otomatis saat halaman dibuka
         window.onload = () => {
-            loadBookCatalog();
+            checkServerStatusAndLoad();
         };
     </script>
 </body>
