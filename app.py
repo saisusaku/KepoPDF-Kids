@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 import edge_tts
 from groq import Groq
+import fitz  # PyMuPDF untuk render cover halaman pertama PDF
 
 # =====================================================================
 # 1. KONFIGURASI DIREKTORI & GROQ AI
@@ -26,13 +27,14 @@ BASE_DIR = os.path.abspath(".")
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 DB_DIR = os.path.join(BASE_DIR, "chroma_db")
 ONLINE_AUDIO_DIR = os.path.join(BASE_DIR, "generated_audio")
+THUMB_DIR = os.path.join(BASE_DIR, "thumbnails")
 MUSIK_DIR = os.path.join(BASE_DIR, "musik")
 DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen")
 
-for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, MUSIK_DIR, DOKUMEN_DIR]:
+for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, THUMB_DIR, MUSIK_DIR, DOKUMEN_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.3.0")
+app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +46,7 @@ app.add_middleware(
 
 app.mount("/audio-online", StaticFiles(directory=ONLINE_AUDIO_DIR), name="audio-online")
 app.mount("/dokumen", StaticFiles(directory=DOKUMEN_DIR), name="dokumen")
+app.mount("/thumbnails", StaticFiles(directory=THUMB_DIR), name="thumbnails")
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
@@ -86,7 +89,7 @@ async def generate_online_tts(data: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================================
-# 3. PEMBACA FOLDER DOKUMEN (KATALOG & URL PANEL KANAN)
+# 3. PEMBACA FOLDER DOKUMEN (KATALOG, URL, & THUMBNAIL HALAMAN PERTAMA)
 # =====================================================================
 @app.get("/api/monkeypen-books")
 async def get_local_documents():
@@ -102,6 +105,25 @@ async def get_local_documents():
                 clean_title = os.path.splitext(filename)[0].replace('_', ' ').replace('-', ' ').title()
                 file_path = os.path.join(DOKUMEN_DIR, filename)
                 
+                # Buat thumbnail otomatis jika formatnya PDF
+                cover_url = ""
+                if filename.lower().endswith('.pdf'):
+                    thumb_filename = f"{os.path.splitext(filename)[0]}_thumb.png"
+                    thumb_path = os.path.join(THUMB_DIR, thumb_filename)
+                    
+                    if not os.path.exists(thumb_path):
+                        try:
+                            doc = fitz.open(file_path)
+                            if len(doc) > 0:
+                                page = doc[0]
+                                pix = page.get_pixmap(dpi=100)
+                                pix.save(thumb_path)
+                        except Exception as e:
+                            print(f"Gagal membuat thumbnail {filename}: {e}")
+                    
+                    if os.path.exists(thumb_path):
+                        cover_url = f"/thumbnails/{thumb_filename}"
+
                 preview_snippet = "Buku bersumber resmi siap dibaca oleh AI!"
                 if filename.lower().endswith('.txt'):
                     try:
@@ -114,6 +136,8 @@ async def get_local_documents():
                     "title": clean_title,
                     "filename": filename,
                     "url": f"/dokumen/{filename}",
+                    "pdf_url": f"/dokumen/{filename}",  # Kompatibilitas frontend
+                    "cover_url": cover_url,
                     "preview": preview_snippet
                 })
 
@@ -127,10 +151,9 @@ async def get_local_documents():
 @app.post("/generate-storybook-cloud")
 async def generate_storybook_cloud(request: Request):
     if not groq_client:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY belum disetel di environment variables Render.")
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY belum disetel di environment variables.")
 
     try:
-        # Tangani data masuk baik berupa JSON maupun Form Data untuk mencegah error tipe data
         body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else await request.form()
         book_title = body.get("book_title") if isinstance(body, dict) else body.get("book_title", "Unknown")
         target_lang = body.get("target_lang", "indonesia") if isinstance(body, dict) else "indonesia"
@@ -145,13 +168,27 @@ async def generate_storybook_cloud(request: Request):
                     if f.endswith('.txt'):
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
                             file_content_context = file_obj.read()
+                    elif f.endswith('.pdf'):
+                        try:
+                            doc = fitz.open(file_path)
+                            extracted_text = []
+                            for page in doc:
+                                extracted_text.append(page.get_text())
+                            file_content_context = "\n".join(extracted_text)
+                        except Exception as e:
+                            print(f"Gagal ekstrak teks PDF: {e}")
                     break
 
         if not file_content_context and os.path.exists(DOKUMEN_DIR):
-            files = [f for f in os.listdir(DOKUMEN_DIR) if f.endswith('.txt')]
+            files = [f for f in os.listdir(DOKUMEN_DIR) if f.endswith(('.txt', '.pdf'))]
             if files:
-                with open(os.path.join(DOKUMEN_DIR, files[0]), 'r', encoding='utf-8', errors='ignore') as file_obj:
-                    file_content_context = file_obj.read()
+                f_path = os.path.join(DOKUMEN_DIR, files[0])
+                if files[0].endswith('.pdf'):
+                    doc = fitz.open(f_path)
+                    file_content_context = "\n".join([p.get_text() for p in doc])
+                else:
+                    with open(f_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
+                        file_content_context = file_obj.read()
 
         if not file_content_context:
             file_content_context = f"Judul Buku: {book_title}."
