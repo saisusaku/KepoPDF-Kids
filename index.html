@@ -16,7 +16,6 @@
             --accent-green: #06D6A0;
             --accent-blue: #118AB2;
             --accent-purple: #8338EC;
-            --border-color: #FFE3E3;
         }
 
         * {
@@ -420,15 +419,13 @@
     </div>
 
     <audio id="ttsAudioPlayer" style="display: none;"></audio>
-    <audio id="bgmAudioPlayer" loop style="display: none;"></audio>
 
     <script>
-        // Ganti URL ini dengan URL Web Service backend Render Anda
-        const BACKEND_URL = "https://NAMA-RENDER-ANDA.onrender.com";
+        // Mengarah langsung ke backend Render Anda
+        const BACKEND_URL = "https://kepopdf-kids.onrender.com";
 
         let selectedBookTitle = '';
         let currentAudio = document.getElementById('ttsAudioPlayer');
-        let bgmAudio = document.getElementById('bgmAudioPlayer');
         let currentStoryPages = [];
         let currentStoryIndex = 0;
 
@@ -455,7 +452,7 @@
                         catalog.appendChild(card);
                     });
 
-                    // Otomatis pilih buku pertama
+                    // Pilih buku pertama secara otomatis
                     selectBook(data.books[0].title, 0);
                 } else {
                     emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
