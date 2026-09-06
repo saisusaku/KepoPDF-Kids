@@ -425,14 +425,19 @@
         </div>
     </div>
 
+    <!-- Audio Player untuk Voice Narasi TTS -->
     <audio id="ttsAudioPlayer" style="display: none;"></audio>
+    <!-- Audio Player untuk Backsound Musik Latar dari GitHub (musik/backsound1.wav) -->
+    <audio id="bgMusic" src="musik/backsound1.wav" loop preload="auto" style="display: none;"></audio>
 
     <script>
         const BACKEND_URL = "https://kepopdf-kids.onrender.com";
 
         let selectedBookTitle = '';
-        let selectedFilename = ''; // Variabel presisi untuk menyimpan filename asli
+        let selectedFilename = ''; 
+        let rawPdfUrl = '';
         let currentAudio = document.getElementById('ttsAudioPlayer');
+        let bgMusic = document.getElementById('bgMusic');
         let currentStoryPages = [];
         let currentStoryIndex = 0;
 
@@ -456,7 +461,6 @@
                         card.id = `card-${idx}`;
                         
                         const pdfTargetUrl = BACKEND_URL + (book.pdf_url || book.url);
-                        // Kirim juga parameter filename saat memilih buku
                         card.onclick = () => selectBook(book.title, idx, pdfTargetUrl, book.filename);
 
                         let coverInner = '📖';
@@ -471,7 +475,6 @@
                         catalog.appendChild(card);
                     });
 
-                    // Otomatis pilih buku pertama secara presisi
                     selectBook(data.books[0].title, 0, BACKEND_URL + (data.books[0].pdf_url || data.books[0].url), data.books[0].filename);
                 } else {
                     emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
@@ -486,7 +489,8 @@
 
         function selectBook(title, index, pdfUrl = '', filename = '') {
             selectedBookTitle = title;
-            selectedFilename = filename; // Simpan filename agar tidak tertukar
+            selectedFilename = filename;
+            rawPdfUrl = pdfUrl;
 
             document.querySelectorAll('.book-card').forEach(card => card.classList.remove('active'));
             const activeCard = document.getElementById(`card-${index}`);
@@ -497,7 +501,7 @@
 
             if (pdfUrl) {
                 viewerBody.innerHTML = `
-                    <iframe src="${pdfUrl}#toolbar=0" style="width:100%; height:100%; border:none;" title="${title}"></iframe>
+                    <iframe id="pdfFrame" src="${pdfUrl}#toolbar=0" style="width:100%; height:100%; border:none;" title="${title}"></iframe>
                 `;
             } else {
                 viewerBody.innerHTML = `
@@ -539,7 +543,6 @@
             }, 600);
 
             try {
-                // Kirim book_title dan filename secara bersamaan ke backend
                 const response = await fetch(`${BACKEND_URL}/generate-storybook-cloud`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -601,10 +604,22 @@
         }
 
         function playPageSequence(index) {
-            if (index < 0 || index >= currentStoryPages.length) return;
+            if (index < 0 || index >= currentStoryPages.length) {
+                stopStoryAndMusic();
+                return;
+            }
             currentStoryIndex = index;
             const p = currentStoryPages[index];
             const boxId = `page-box-${index}`;
+
+            // Putar backsound musik latar dari GitHub saat cerita berjalan
+            if (bgMusic.paused) {
+                bgMusic.volume = 0.25; // Volume latar lembut agar tidak menutupi suara TTS
+                bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
+            }
+
+            // Pindahkan halaman PDF di Iframe secara otomatis sesuai halaman yang dibaca
+            updatePdfPage(p.page);
 
             playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
 
@@ -614,8 +629,17 @@
                     playPageSequence(currentStoryIndex + 1);
                 } else {
                     console.log("Semua halaman cerita selesai dibacakan.");
+                    stopStoryAndMusic();
                 }
             };
+        }
+
+        function updatePdfPage(pageNumber) {
+            const pdfFrame = document.getElementById('pdfFrame');
+            if (pdfFrame && rawPdfUrl) {
+                // Memperbarui URL iframe dengan parameter halaman PDF (#page=N)
+                pdfFrame.src = `${rawPdfUrl}#page=${pageNumber}&toolbar=0`;
+            }
         }
 
         function playPageAudio(audioUrl, boxId, index) {
@@ -639,6 +663,12 @@
                 targetBtn.style.backgroundColor = "#E53E3E";
             }
 
+            // Pastikan musik latar tetap menyala ketika memutar halaman
+            if (bgMusic.paused) {
+                bgMusic.volume = 0.25;
+                bgMusic.play().catch(e => console.log(e));
+            }
+
             currentAudio.src = audioUrl;
             currentAudio.play().catch(e => console.log("Gagal memutar audio otomatis:", e));
         }
@@ -646,17 +676,31 @@
         function togglePageAudio(index) {
             const btn = document.getElementById(`play-btn-${index}`);
             const p = currentStoryPages[index];
-            const boxId = `page-box-${index}`;
 
             if (!currentAudio.paused && currentStoryIndex === index) {
+                // Hentikan/jeda dongeng dan musik
                 currentAudio.pause();
+                bgMusic.pause();
                 if (btn) {
                     btn.innerHTML = "▶️ Putar Halaman Ini";
                     btn.style.backgroundColor = "";
                 }
             } else {
+                updatePdfPage(p.page);
                 playPageSequence(index);
             }
+        }
+
+        function stopStoryAndMusic() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            if (bgMusic) {
+                bgMusic.pause();
+                bgMusic.currentTime = 0;
+            }
+            resetPlayButtons();
         }
 
         function resetPlayButtons() {
