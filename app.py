@@ -33,7 +33,7 @@ DOKUMEN_DIR = os.path.join(BASE_DIR, "dokumen")
 for folder in [UPLOAD_DIR, DB_DIR, ONLINE_AUDIO_DIR, MUSIK_DIR, DOKUMEN_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.0.0")
+app = FastAPI(title="KepoPDF Kids Cloud Backend", version="4.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,8 +44,8 @@ app.add_middleware(
 )
 
 app.mount("/audio-online", StaticFiles(directory=ONLINE_AUDIO_DIR), name="audio-online")
+app.mount("/dokumen", StaticFiles(directory=DOKUMEN_DIR), name="dokumen")
 
-# Inisialisasi Groq Client dari Environment Variable Render
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
@@ -87,7 +87,7 @@ async def generate_online_tts(data: TTSRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # =====================================================================
-# 3. PEMBACA FOLDER DOKUMEN GITHUB
+# 3. PEMBACA FOLDER DOKUMEN
 # =====================================================================
 @app.get("/api/monkeypen-books")
 async def get_local_documents():
@@ -95,30 +95,35 @@ async def get_local_documents():
         if not os.path.exists(DOKUMEN_DIR):
             return {"status": "success", "source": "local_folder", "books": []}
 
-        files = os.listdir(DOKUMEN_DIR)
+        files = sorted(os.listdir(DOKUMEN_DIR))
         books = []
         
         for filename in files:
             if filename.lower().endswith(('.pdf', '.txt', '.epub', '.docx')):
                 clean_title = os.path.splitext(filename)[0].replace('_', ' ').replace('-', ' ').title()
+                file_path = os.path.join(DOKUMEN_DIR, filename)
+                
+                preview_snippet = "Buku bersumber resmi siap dibaca oleh AI!"
+                if filename.lower().endswith('.txt'):
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f_txt:
+                            preview_snippet = f_txt.read(300).strip()
+                    except:
+                        pass
+
                 books.append({
                     "title": clean_title,
                     "filename": filename,
-                    "url": f"/dokumen/{filename}"
+                    "url": f"/dokumen/{filename}",
+                    "preview": preview_snippet
                 })
-
-        if not books:
-            books = [
-                {"title": "001 Hide And Seek", "filename": "hide_and_seek.txt", "url": "#"},
-                {"title": "002 Ginger The Giraffe", "filename": "ginger.txt", "url": "#"}
-            ]
 
         return {"status": "success", "source": "local_folder", "books": books}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan saat membaca folder dokumen: {str(e)}")
 
 # =====================================================================
-# 4. PABRIK PEMBUAT CERITA DENGAN GROQ AI
+# 4. PABRIK PEMBACA & PENERJEMAH ISI DOKUMEN ASLI DENGAN GROQ AI
 # =====================================================================
 class StoryRequest(BaseModel):
     book_title: str
@@ -132,26 +137,41 @@ async def generate_storybook_cloud(data: StoryRequest):
     try:
         file_content_context = ""
         safe_title_slug = data.book_title.lower().replace(" ", "_")
+        
         if os.path.exists(DOKUMEN_DIR):
             for f in os.listdir(DOKUMEN_DIR):
-                if safe_title_slug in f.lower() and f.endswith('.txt'):
+                if safe_title_slug in f.lower() or f.lower().startswith(safe_title_slug[:5]):
                     file_path = os.path.join(DOKUMEN_DIR, f)
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
-                        file_content_context = file_obj.read()[:3000]
+                    if f.endswith('.txt'):
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file_obj:
+                            file_content_context = file_obj.read()
+                    break
 
+        # Jika teks tidak ditemukan lewat slug, coba baca file pertama yang cocok
+        if not file_content_context and os.path.exists(DOKUMEN_DIR):
+            files = [f for f in os.listdir(DOKUMEN_DIR) if f.endswith('.txt')]
+            if files:
+                with open(os.path.join(DOKUMEN_DIR, files[0]), 'r', encoding='utf-8', errors='ignore') as file_obj:
+                    file_content_context = file_obj.read()
+
+        if not file_content_context:
+            file_content_context = f"Judul Buku: {data.book_title}. (Teks isi dokumen tidak ditemukan, mohon sesuaikan isi dengan cerita anak standar)."
+
+        # Prompt ketat agar AI MENGGUNAKAN teks asli, bukan mengarang bebas
         prompt = (
-            f"Buatkan adaptasi dongeng anak yang ramah, ceria, dan mendidik berdasarkan judul buku: '{data.book_title}'. "
-            f"Gunakan konteks isi berikut jika ada: {file_content_context} "
-            f"Bagi cerita menjadi 4 halaman/bagian terpisah yang menarik. "
+            f"Anda adalah asisten pembaca buku anak profesional. Tugas Anda adalah membaca ISI TEKS ASLI dari dokumen di bawah ini, "
+            f"lalu menyusunnya kembali menjadi alur cerita anak yang terbagi menjadi 4 halaman/bagian secara berurutan. "
+            f"PENTING: Jangan mengarang cerita di luar isi dokumen. Terjemahkan ke dalam Bahasa Indonesia yang ramah anak jika isi aslinya berbahasa Inggris.\n\n"
+            f"--- ISI DOKUMEN ASLI ---\n{file_content_context[:8000]}\n------------------------\n\n"
             f"Berikan output HANYA dalam format JSON murni berupa list of object dengan struktur persis: "
-            f"[{{\"page\": 1, \"text\": \"...\"}}, {{\"page\": 2, \"text\": \"...\"}}]. Jangan sertakan teks lain di luar JSON."
+            f"[{\"page\": 1, \"text\": \"...\"}, {\"page\": 2, \"text\": \"...\"}, {\"page\": 3, \"text\": \"...\"}, {\"page\": 4, \"text\": \"...\"}]. "
+            f"Jangan sertakan teks pengantar atau penutup lain di luar format JSON."
         )
         
-        # Menggunakan model aktif openai/gpt-oss-20b
         completion = groq_client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
+            temperature=0.3,  # Suhu diturunkan agar AI lebih patuh pada teks asli dan tidak berimajinasi liar
         )
         
         raw_text = completion.choices[0].message.content.strip()
@@ -190,7 +210,7 @@ async def generate_storybook_cloud(data: StoryRequest):
             "pages": final_pages
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal meracik cerita AI: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Gagal membaca dokumen asli: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
