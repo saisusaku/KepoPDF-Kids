@@ -15,7 +15,768 @@
             --accent-yellow: #FFD166;
             --accent-green: #06D6A0;
             --accent-blue: #118AB2;
+            --accent-purple: #8338EC;<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KepoPDF Kids - Teman Membaca Cerita AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #FFF9E6;
+            --bg-card: #FFFFFF;
+            --text-main: #2D3748;
+            --text-muted: #718096;
+            --accent-pink: #FF6B8B;
+            --accent-yellow: #FFD166;
+            --accent-green: #06D6A0;
+            --accent-blue: #118AB2;
             --accent-purple: #8338EC;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Quicksand', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: #FFFFFF;
+            border-bottom: 4px solid #FFE066;
+            padding: 10px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 70px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Fredoka', cursive;
+            font-size: 1.5rem;
+            color: var(--accent-pink);
+        }
+
+        .brand-icon {
+            background: var(--accent-pink);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            transform: rotate(-5deg);
+            display: inline-block;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0) rotate(-5deg); }
+            50% { transform: translateY(-5px) rotate(5deg); }
+        }
+
+        .license-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            background: #E8F5E9;
+            padding: 6px 16px;
+            border-radius: 30px;
+            border: 2px solid var(--accent-green);
+            font-weight: 700;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            background: #A5D6A7; 
+            color: #1B5E20;
+            transition: all 0.3s ease;
+        }
+
+        .badge.offline {
+            background: #FFCDD2;
+            color: #C62828;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 70px);
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .left-panel {
+            flex: 1.1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-width: 420px;
+        }
+
+        .right-panel {
+            flex: 0.9;
+            background: var(--bg-card);
+            border-radius: 24px;
+            border: 4px solid #BEE3F8;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 0px #90CDF4;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 16px 20px;
+            border: 3px solid #E2E8F0;
+            box-shadow: 0 6px 0px #CBD5E0;
+        }
+
+        .section-title {
+            font-family: 'Fredoka', cursive;
+            font-size: 1.1rem;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            background-color: var(--accent-pink);
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            font-family: 'Fredoka', cursive;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 0px #D53F8C;
+        }
+
+        button:hover { transform: translateY(-2px); }
+        button:active { transform: translateY(2px); box-shadow: none; }
+        button:disabled { background-color: #CBD5E1; box-shadow: none; cursor: not-allowed; }
+
+        .btn-green { background-color: var(--accent-green); box-shadow: 0 4px 0px #38A169; }
+
+        .catalog-container {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 8px 4px 12px 4px;
+            scroll-behavior: smooth;
+        }
+
+        .catalog-container::-webkit-scrollbar { height: 8px; }
+        .catalog-container::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 10px; }
+
+        .book-card {
+            flex: 0 0 130px;
+            background: #FFF;
+            border: 3px solid #E2E8F0;
+            border-radius: 16px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 0px #CBD5E0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .book-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-pink);
+            box-shadow: 0 8px 0px #FED7E2;
+        }
+
+        .book-card.active {
+            border-color: var(--accent-purple);
+            background: #F3E8FF;
+            box-shadow: 0 6px 0px #9F7AEA;
+        }
+
+        .book-cover-wrapper {
+            width: 100%;
+            height: 120px;
+            background: #EBF8FF;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 6px;
+            overflow: hidden;
+            border: 1px solid #BEE3F8;
+            font-size: 2rem;
+        }
+
+        .book-cover-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .book-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.2;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word;
+        }
+
+        .empty-catalog {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            padding: 12px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .chat-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #FFFFFF;
+            border-color: #FBB6CE;
+            box-shadow: 0 6px 0px #FED7E2;
+        }
+
+        #chat-box {
+            flex: 1;
+            overflow-y: auto;
+            border: 2px dashed #FED7E2;
+            padding: 16px;
+            border-radius: 16px;
+            background: #FFF5F7;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 90%;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            font-weight: 600;
+        }
+
+        .bot {
+            align-self: flex-start;
+            background-color: #FFFFFF;
+            color: var(--text-main);
+            border: 2px solid #E2E8F0;
+            border-bottom-left-radius: 4px;
+            white-space: pre-wrap;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            width: 100%;
+        }
+
+        .story-page-box {
+            background: #FFFDF0;
+            border: 2px solid #FFE066;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin: 8px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .story-page-text {
+            font-size: 0.9rem;
+            color: #2D3748;
+        }
+
+        .audio-controls {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #CBD5E0;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .viewer-header {
+            padding: 10px 20px;
+            background: #EBF8FF;
+            border-bottom: 3px solid #BEE3F8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .viewer-title {
+            font-family: 'Fredoka', cursive;
+            font-size: 1.05rem;
+            color: var(--accent-blue);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .viewer-body {
+            flex: 1;
+            background: #EDF2F7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .empty-viewer {
+            color: #A0AEC0;
+            text-align: center;
+            padding: 20px;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .empty-viewer span {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span class="brand-icon">📚</span>
+            <span>KepoPDF Kids! (Monkey Pen)</span>
+        </div>
+        <div class="license-bar">
+            <div>
+                Status: <span id="licenseBadge" class="badge">ONLINE CLOUD</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="left-panel">
+            <div class="card" style="border-color: #F6AD55; box-shadow: 0 6px 0px #FBD38D;">
+                <div class="section-title" style="color: #DD6B20;">
+                    <span>Katalog Buku Cerita Monkey Pen 📖</span>
+                </div>
+                <div class="catalog-container" id="bookCatalog">
+                    <div class="empty-catalog" id="emptyCatalogText">
+                        Memuat daftar buku dari Monkey Pen... ✨
+                    </div>
+                </div>
+            </div>
+
+            <div class="card chat-card">
+                <div class="section-title">
+                    <span>Dongeng Interaktif Anak 🤖</span>
+                </div>
+                <div id="chat-box">
+                    <div class="message bot">
+                        <b>AI Teman Cerita:</b> Halo Teman Pintar! 🌟 Pilih salah satu buku cerita Monkey Pen di rak sebelah atas. Pilih bahasa lalu klik tombol di bawah untuk mendengarkan dongeng serunya!
+                    </div>
+                </div>
+                <div class="row" style="gap: 6px;">
+                    <select id="langSelect" style="padding: 8px; border-radius: 10px; border: 2px solid #CBD5E0; font-weight: 700;">
+                        <option value="indonesia">🇮🇩 Bahasa Indonesia</option>
+                        <option value="english">🇬🇧 English</option>
+                    </select>
+                    <button onclick="generateStorybook()" id="storyBtn" class="btn-green" style="flex: 1; justify-content: center;">✨ Mulai Mendongeng</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="viewer-header">
+                <div class="viewer-title" id="pdfViewerTitle" title="Buku Ceritaku">Pilih Buku Cerita</div>
+            </div>
+            <div class="viewer-body" id="viewerBody">
+                <div class="empty-viewer" id="emptyState">
+                    <span>📖✨</span>
+                    Belum ada buku yang dipilih.<br>Klik salah satu sampul buku di katalog sebelah kiri!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Player untuk Voice Narasi TTS -->
+    <audio id="ttsAudioPlayer" style="display: none;"></audio>
+    <!-- Audio Player untuk Backsound Musik Latar -->
+    <audio id="bgMusic" src="musik/backsound1.wav" loop preload="auto" style="display: none;"></audio>
+
+    <script>
+        const BACKEND_URL = "https://kepopdf-kids.onrender.com";
+
+        let selectedBookTitle = '';
+        let selectedFilename = ''; 
+        let rawPdfUrl = '';
+        let currentAudio = document.getElementById('ttsAudioPlayer');
+        let bgMusic = document.getElementById('bgMusic');
+        let currentStoryPages = [];
+        let currentStoryIndex = 0;
+        let isPlayingIntro = false;
+
+        async function loadBookCatalog() {
+            const catalog = document.getElementById('bookCatalog');
+            const emptyText = document.getElementById('emptyCatalogText');
+            const badge = document.getElementById('licenseBadge');
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/monkeypen-books`);
+                const data = await response.json();
+                
+                badge.innerText = "ONLINE CLOUD";
+                badge.classList.remove('offline');
+
+                if (response.ok && data.books && data.books.length > 0) {
+                    catalog.innerHTML = '';
+                    data.books.forEach((book, idx) => {
+                        const card = document.createElement('div');
+                        card.className = 'book-card';
+                        card.id = `card-${idx}`;
+                        
+                        const pdfTargetUrl = BACKEND_URL + (book.pdf_url || book.url);
+                        card.onclick = () => selectBook(book.title, idx, pdfTargetUrl, book.filename);
+
+                        let coverInner = '📖';
+                        if (book.cover_url) {
+                            coverInner = `<img src="${BACKEND_URL + book.cover_url}" alt="${book.title}">`;
+                        }
+
+                        card.innerHTML = `
+                            <div class="book-cover-wrapper">${coverInner}</div>
+                            <div class="book-title" title="${book.title}">${book.title}</div>
+                        `;
+                        catalog.appendChild(card);
+                    });
+
+                    selectBook(data.books[0].title, 0, BACKEND_URL + (data.books[0].pdf_url || data.books[0].url), data.books[0].filename);
+                } else {
+                    emptyText.innerText = "Gagal memuat katalog buku dari Monkey Pen.";
+                }
+            } catch (e) {
+                console.error("Gagal terhubung ke backend Render", e);
+                badge.innerText = "OFFLINE / SLEEPING";
+                badge.classList.add('offline');
+                emptyText.innerText = "Gagal terhubung ke server backend Render.";
+            }
+        }
+
+        function selectBook(title, index, pdfUrl = '', filename = '') {
+            selectedBookTitle = title;
+            selectedFilename = filename;
+            rawPdfUrl = pdfUrl;
+
+            document.querySelectorAll('.book-card').forEach(card => card.classList.remove('active'));
+            const activeCard = document.getElementById(`card-${index}`);
+            if (activeCard) activeCard.classList.add('active');
+
+            document.getElementById('pdfViewerTitle').innerText = title;
+            const viewerBody = document.getElementById('viewerBody');
+
+            if (pdfUrl) {
+                viewerBody.innerHTML = `
+                    <iframe id="pdfFrame" src="${pdfUrl}#toolbar=0" style="width:100%; height:100%; border:none;" title="${title}"></iframe>
+                `;
+            } else {
+                viewerBody.innerHTML = `
+                    <div id="bookInfoDisplay" style="max-width: 400px; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 15px;">🧸📘</div>
+                        <h3 id="selectedBookHeading" style="color: var(--accent-blue); margin-bottom: 10px; font-family: 'Fredoka', cursive;">${title}</h3>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Buku bersumber resmi dari Monkey Pen siap untuk diracik ceritanya oleh AI!</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function generateStorybook() {
+            if (!selectedBookTitle) {
+                return alert("Pilih salah satu buku di katalog rak terlebih dahulu!");
+            }
+
+            const chatBox = document.getElementById('chat-box');
+            const storyBtn = document.getElementById('storyBtn');
+            const targetLang = document.getElementById('langSelect').value;
+
+            storyBtn.disabled = true;
+            const loadingId = 'loading-' + Date.now();
+            
+            chatBox.innerHTML += `
+                <div class="message bot" id="${loadingId}">
+                    <b>AI Teman Cerita:</b> 
+                    <span id="loading-text">Sedang meracik keajaiban dongeng dari Monkey Pen... ✨🪄</span>
+                </div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            let dots = "";
+            const loadingInterval = setInterval(() => {
+                dots = dots.length >= 3 ? "" : dots + ".";
+                const txtEl = document.getElementById('loading-text');
+                if (txtEl) {
+                    txtEl.innerText = `Menyiapkan suara dan dongeng per halaman${dots}`;
+                }
+            }, 600);
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/generate-storybook-cloud`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: selectedBookTitle,
+                        filename: selectedFilename,
+                        target_lang: targetLang
+                    })
+                });
+
+                clearInterval(loadingInterval);
+                if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+
+                const result = await response.json();
+                if (response.ok) {
+                    const pages = result.pages;
+                    currentStoryPages = pages; 
+                    currentStoryIndex = 0;
+                    let pagesHtml = '';
+
+                    pages.forEach((p, idx) => {
+                        pagesHtml += `
+                            <div class="story-page-box" id="page-box-${idx}">
+                                <div style="font-weight: 700; color: var(--accent-blue); font-size: 0.85rem;">Halaman ${p.page || (idx + 1)} 📖</div>
+                                <div class="story-page-text">${p.text}</div>
+                                <div class="audio-controls">
+                                    <button onclick="togglePageAudio(${idx})" id="play-btn-${idx}" class="btn-green" style="padding: 4px 10px; font-size: 0.75rem;">▶️ Putar Halaman Ini</button>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);">Audio TTS Per Halaman</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    const msgId = 'msg-' + Date.now();
+                    chatBox.innerHTML += `
+                        <div class="message bot" id="${msgId}">
+                            <b>AI Teman Cerita:</b> Hore! Buku <b>${selectedBookTitle}</b> siap didongengkan secara berurutan (${pages.length} halaman). Yuk dengarkan:
+                            <div style="margin-top: 8px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
+                                ${pagesHtml}
+                            </div>
+                        </div>
+                    `;
+
+                    if (currentStoryPages.length > 0) {
+                        playIntroAndStory();
+                    }
+
+                } else {
+                    chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E"><b>Gagal:</b> ${result.detail || 'Terjadi kesalahan pada server.'}</div>`;
+                }
+            } catch (err) {
+                clearInterval(loadingInterval);
+                if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+                chatBox.innerHTML += `<div class="message bot" style="color:#E53E3E">Gagal terhubung ke server backend Render. Periksa koneksi internet Anda.</div>`;
+            } finally {
+                storyBtn.disabled = false;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        async function playIntroAndStory() {
+            isPlayingIntro = true;
+            
+            if (bgMusic.paused) {
+                bgMusic.volume = 0.25; 
+                bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
+            }
+
+            // Awal buka halaman sampul (Halaman 1 PDF)
+            updatePdfPage(1);
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const targetLang = document.getElementById('langSelect').value;
+                const introText = targetLang === 'english' 
+                    ? `Let's read a storybook titled: ${selectedBookTitle}.` 
+                    : `Yuk kita membaca buku cerita berjudul: ${selectedBookTitle}.`;
+                
+                const utterance = new SpeechSynthesisUtterance(introText);
+                utterance.lang = targetLang === 'english' ? 'en-US' : 'id-ID';
+                utterance.rate = 0.9;
+                
+                utterance.onend = function() {
+                    isPlayingIntro = false;
+                    // Lanjut memutar halaman pertama secara utuh sampai habis
+                    playPageSequence(0);
+                };
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                isPlayingIntro = false;
+                playPageSequence(0);
+            }
+        }
+
+        function playPageSequence(index) {
+            if (index < 0 || index >= currentStoryPages.length) {
+                stopStoryAndMusic();
+                return;
+            }
+            currentStoryIndex = index;
+            const p = currentStoryPages[index];
+            const boxId = `page-box-${index}`;
+
+            if (bgMusic.paused) {
+                bgMusic.volume = 0.25;
+                bgMusic.play().catch(e => console.log(e));
+            }
+
+            // Menggunakan nomor halaman dari backend secara langsung tanpa offset tambahan (+2) yang menyebabkan skip
+            const pageNum = p.page ? parseInt(p.page) : (index + 1);
+            
+            updatePdfPage(pageNum);
+            playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
+
+            currentAudio.onended = function() {
+                resetPlayButtons();
+                // Otomatis lanjut ke halaman berikutnya hingga tuntas sampai akhir buku
+                if (currentStoryIndex + 1 < currentStoryPages.length) {
+                    playPageSequence(currentStoryIndex + 1);
+                } else {
+                    console.log("Dongeng selesai dibacakan sampai habis.");
+                    stopStoryAndMusic();
+                }
+            };
+        }
+
+        function updatePdfPage(pageNumber) {
+            const pdfFrame = document.getElementById('pdfFrame');
+            if (pdfFrame && rawPdfUrl) {
+                pdfFrame.src = `${rawPdfUrl}#page=${pageNumber}&toolbar=0`;
+            }
+        }
+
+        function playPageAudio(audioUrl, boxId, index) {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+
+            resetPlayButtons();
+
+            document.querySelectorAll('.story-page-box').forEach(b => b.style.background = '#FFFDF0');
+            const activeBox = document.getElementById(boxId);
+            if (activeBox) {
+                activeBox.style.background = '#EBF8FF';
+                activeBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            const targetBtn = document.getElementById(`play-btn-${index}`);
+            if (targetBtn) {
+                targetBtn.innerHTML = "⏸️ Jeda";
+                targetBtn.style.backgroundColor = "#E53E3E";
+            }
+
+            if (bgMusic.paused) {
+                bgMusic.volume = 0.25;
+                bgMusic.play().catch(e => console.log(e));
+            }
+
+            currentAudio.src = audioUrl;
+            currentAudio.play().catch(e => console.log("Gagal memutar audio otomatis:", e));
+        }
+
+        function togglePageAudio(index) {
+            if (isPlayingIntro) {
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+                isPlayingIntro = false;
+            }
+
+            const btn = document.getElementById(`play-btn-${index}`);
+            const p = currentStoryPages[index];
+
+            if (!currentAudio.paused && currentStoryIndex === index) {
+                currentAudio.pause();
+                bgMusic.pause();
+                if (btn) {
+                    btn.innerHTML = "▶️ Putar Halaman Ini";
+                    btn.style.backgroundColor = "";
+                }
+            } else {
+                const pageNum = p.page ? parseInt(p.page) : (index + 1);
+                updatePdfPage(pageNum);
+                playPageSequence(index);
+            }
+        }
+
+        function stopStoryAndMusic() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            if (bgMusic) {
+                bgMusic.pause();
+                bgMusic.currentTime = 0;
+            }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            isPlayingIntro = false;
+            resetPlayButtons();
+        }
+
+        function resetPlayButtons() {
+            document.querySelectorAll('.audio-controls button').forEach(btn => {
+                btn.innerHTML = "▶️ Putar Halaman Ini";
+                btn.style.backgroundColor = "";
+            });
+        }
+
+        window.onload = () => {
+            loadBookCatalog();
+        };
+    </script>
+</body>
+</html>
         }
 
         * {
