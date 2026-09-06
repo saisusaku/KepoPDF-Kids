@@ -539,7 +539,7 @@
                 dots = dots.length >= 3 ? "" : dots + ".";
                 const txtEl = document.getElementById('loading-text');
                 if (txtEl) {
-                    txtEl.innerText = `Menyiapkan suara dan dongeng interaktif anak-anak${dots}`;
+                    txtEl.innerText = `Menyiapkan suara dan dongeng per halaman${dots}`;
                 }
             }, 600);
 
@@ -567,11 +567,11 @@
                     pages.forEach((p, idx) => {
                         pagesHtml += `
                             <div class="story-page-box" id="page-box-${idx}">
-                                <div style="font-weight: 700; color: var(--accent-blue); font-size: 0.85rem;">Halaman ${p.page} 📖</div>
+                                <div style="font-weight: 700; color: var(--accent-blue); font-size: 0.85rem;">Halaman ${p.page || (idx + 1)} 📖</div>
                                 <div class="story-page-text">${p.text}</div>
                                 <div class="audio-controls">
                                     <button onclick="togglePageAudio(${idx})" id="play-btn-${idx}" class="btn-green" style="padding: 4px 10px; font-size: 0.75rem;">▶️ Putar Halaman Ini</button>
-                                    <span style="font-size: 0.75rem; color: var(--text-muted);">Audio TTS Aktif</span>
+                                    <span style="font-size: 0.75rem; color: var(--text-muted);">Audio TTS Per Halaman</span>
                                 </div>
                             </div>
                         `;
@@ -580,7 +580,7 @@
                     const msgId = 'msg-' + Date.now();
                     chatBox.innerHTML += `
                         <div class="message bot" id="${msgId}">
-                            <b>AI Teman Cerita:</b> Hore! Buku <b>${selectedBookTitle}</b> siap didongengkan (${pages.length} halaman). Yuk dengarkan ceritanya:
+                            <b>AI Teman Cerita:</b> Hore! Buku <b>${selectedBookTitle}</b> siap didongengkan secara berurutan (${pages.length} halaman). Yuk dengarkan:
                             <div style="margin-top: 8px; max-height: 250px; overflow-y: auto; padding-right: 4px;">
                                 ${pagesHtml}
                             </div>
@@ -588,7 +588,6 @@
                     `;
 
                     if (currentStoryPages.length > 0) {
-                        // Mulai dari membacakan Judul Buku terlebih dahulu, baru masuk ke halaman cerita pertama
                         playIntroAndStory();
                     }
 
@@ -608,16 +607,14 @@
         async function playIntroAndStory() {
             isPlayingIntro = true;
             
-            // Nyalakan backsound musik latar
             if (bgMusic.paused) {
                 bgMusic.volume = 0.25; 
                 bgMusic.play().catch(e => console.log("Gagal memutar backsound musik:", e));
             }
 
-            // Posisikan PDF di halaman sampul awal (Halaman 1)
+            // Awal buka halaman sampul (Halaman 1 PDF)
             updatePdfPage(1);
 
-            // Buat fungsi sintesis suara browser untuk membaca judul buku terlebih dahulu
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const targetLang = document.getElementById('langSelect').value;
@@ -631,7 +628,7 @@
                 
                 utterance.onend = function() {
                     isPlayingIntro = false;
-                    // Lanjut memutar halaman pertama cerita sampai habis
+                    // Lanjut memutar halaman pertama secara utuh sampai habis
                     playPageSequence(0);
                 };
                 
@@ -656,20 +653,21 @@
                 bgMusic.play().catch(e => console.log(e));
             }
 
-            // PENYESUAIAN HALAMAN PDF: Offset + 2 atau + 1 jika halaman fisik PDF bergeser dari nomor array AI
-            // Anda bisa menyesuaikan angka penambahan (+ 2 atau + 1) jika masih kurang pas dengan layout PDF Monkey Pen Anda
-            const adjustedPageNumber = (p.page || (index + 1)) + 2; 
+            // Memastikan penyesuaian nomor halaman PDF pas per halaman data AI.
+            // Jika backend mengirim properti `p.page`, gunakan itu. Jika tidak, pakai index + 1 + offset halaman awal (misal +2).
+            const pageNum = p.page ? (parseInt(p.page)) : (index + 1);
+            const adjustedPageNumber = pageNum + 2; // Sesuaikan angka offset (+2 atau +1) jika masih ada selisih halaman PDF
+            
             updatePdfPage(adjustedPageNumber);
-
             playPageAudio(BACKEND_URL + p.audio_url, boxId, index);
 
             currentAudio.onended = function() {
                 resetPlayButtons();
-                // Memastikan lanjut ke halaman berikutnya sampai habis sepenuhnya
+                // Otomatis lanjut ke halaman berikutnya hingga tuntas sampai akhir buku
                 if (currentStoryIndex + 1 < currentStoryPages.length) {
                     playPageSequence(currentStoryIndex + 1);
                 } else {
-                    console.log("Semua halaman cerita selesai dibacakan sampai habis.");
+                    console.log("Dongeng selesai dibacakan sampai habis.");
                     stopStoryAndMusic();
                 }
             };
@@ -729,7 +727,8 @@
                     btn.style.backgroundColor = "";
                 }
             } else {
-                const adjustedPageNumber = (p.page || (index + 1)) + 2;
+                const pageNum = p.page ? (parseInt(p.page)) : (index + 1);
+                const adjustedPageNumber = pageNum + 2;
                 updatePdfPage(adjustedPageNumber);
                 playPageSequence(index);
             }
