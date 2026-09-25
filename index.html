@@ -520,7 +520,7 @@
     <audio id="bgMusic" src="musik/backsound1.wav" loop preload="auto" style="display: none;"></audio>
 
     <script>
-        const BACKEND_URL = "https://kepopdf-kids.onrender.com"; // Ganti URL jika menggunakan server lokal (misal: http://localhost:8000)
+        const BACKEND_URL = "https://kepopdf-kids.onrender.com";
 
         let selectedBookTitle = '';
         let selectedFilename = ''; 
@@ -531,7 +531,6 @@
         let currentStoryIndex = 0;
         let isPlayingIntro = false;
 
-        // Fungsi untuk menyembunyikan Splash Screen dengan transisi halus
         function hideSplashScreen() {
             const splash = document.getElementById('splash-screen');
             if (splash) {
@@ -540,14 +539,13 @@
             }
         }
 
-        // Pengecekan status server Render secara berkala saat aplikasi dimuat
         async function checkServerStatusAndLoad() {
             const badge = document.getElementById('licenseBadge');
             const splashMsg = document.getElementById('splash-msg');
             const emptyText = document.getElementById('emptyCatalogText');
             
             let attempts = 0;
-            const maxAttempts = 30; // Batas percobaan (~1.5 menit)
+            const maxAttempts = 30;
 
             badge.innerText = "MENGECEK...";
             badge.className = "badge checking";
@@ -563,7 +561,6 @@
                     clearTimeout(timeoutId);
 
                     if (response.ok) {
-                        // Server aktif! Muat data buku dan hilangkan splash screen
                         badge.innerText = "ONLINE CLOUD";
                         badge.className = "badge";
                         hideSplashScreen();
@@ -571,7 +568,6 @@
                         return;
                     }
                 } catch (e) {
-                    // Server mungkin masih dalam proses wake-up (sleep mode Render)
                     attempts++;
                     if (attempts === 3) {
                         badge.innerText = "MENUNGGU SERVER...";
@@ -581,11 +577,9 @@
                         }
                     }
                 }
-                // Jeda 3 detik sebelum mencoba kembali
                 await new Promise(resolve => setTimeout(resolve, 3000));
             }
 
-            // Jika gagal setelah batas percobaan tercapai
             badge.innerText = "OFFLINE / SLEEPING";
             badge.className = "badge offline";
             if (splashMsg) {
@@ -594,7 +588,6 @@
             if (emptyText) {
                 emptyText.innerText = "Gagal terhubung ke server backend Render.";
             }
-            // Sembunyikan splash screen agar pengguna tetap bisa melihat antarmuka meski offline
             setTimeout(hideSplashScreen, 2000);
         }
 
@@ -809,7 +802,6 @@
                 if (currentStoryIndex + 1 < currentStoryPages.length) {
                     playPageSequence(currentStoryIndex + 1);
                 } else {
-                    console.log("Dongeng selesai dibacakan sampai habis.");
                     stopStoryAndMusic();
                 }
             };
@@ -902,7 +894,6 @@
             });
         }
 
-        // Jalankan pengecekan server otomatis saat halaman dibuka
         window.onload = () => {
             checkServerStatusAndLoad();
         };
